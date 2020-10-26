@@ -5,7 +5,7 @@ add_executable(Test src/main.cpp)
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 add_definitions(-DVK_USE_PLATFORM_WIN32_KHR)
-add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/src")
+add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/src/shaders")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
