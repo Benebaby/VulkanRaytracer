@@ -1,3 +1,3 @@
-glslc.exe shader.vert -o vert.spv
-glslc.exe shader.frag -o frag.spv
+glsLangValidator.exe -V shader.vert --target-env vulkan1.2
+glsLangValidator.exe -V shader.frag --target-env vulkan1.2
 pause
