@@ -1,4 +1,6 @@
 #define GLFW_INCLUDE_VULKAN
+#define VK_FLAGS_NONE 0
+#define DEFAULT_FENCE_TIMEOUT 100000000000
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/glm.hpp>
@@ -14,8 +16,8 @@
 #include <set>
 #include <cstdint> // Necessary for UINT32_MAX
 
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
+const uint32_t WIDTH = 1600;
+const uint32_t HEIGHT = 900;
 const bool enableValidationLayers = true;
 
 const std::vector<const char*> validationLayers = {
@@ -65,6 +67,15 @@ struct SwapChainSupportDetails {
     std::vector<VkPresentModeKHR> presentModes;
 };
 
+struct StorageImage {
+    VkDeviceMemory memory;
+    VkImage        image = VK_NULL_HANDLE;
+    VkImageView    view;
+    VkFormat       format;
+    uint32_t       width;
+    uint32_t       height;
+};
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -83,6 +94,7 @@ private:
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
+
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{};
     VkPhysicalDeviceAccelerationStructurePropertiesKHR accelerationStructureProperties{};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures{};
@@ -101,6 +113,7 @@ private:
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
+    StorageImage storageImage;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
@@ -131,6 +144,7 @@ private:
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
+        createStorageImage();
         createCommandBuffers();
         createSemaphores();
     }
@@ -146,6 +160,11 @@ private:
     void cleanup() {
         vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+
+        vkDestroyImageView(device, storageImage.view, nullptr);
+        vkDestroyImage(device, storageImage.image, nullptr);
+        vkFreeMemory(device, storageImage.memory, nullptr);
+
         vkDestroyCommandPool(device, commandPool, nullptr);
 
         for (auto framebuffer : swapChainFramebuffers) {
@@ -391,7 +410,7 @@ private:
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
         createInfo.imageExtent = extent;
         createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
         uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
@@ -448,6 +467,56 @@ private:
         }
     }
 
+    void createStorageImage(){
+        storageImage.width = (uint32_t)WIDTH;
+	    storageImage.height = (uint32_t)HEIGHT;
+        
+        VkImageCreateInfo imageCreateInfo{};
+	    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageCreateInfo.imageType         = VK_IMAGE_TYPE_2D;
+        imageCreateInfo.format            = VK_FORMAT_B8G8R8A8_UNORM;
+        imageCreateInfo.extent.width      = storageImage.width;
+        imageCreateInfo.extent.height     = storageImage.height;
+        imageCreateInfo.extent.depth      = 1;
+        imageCreateInfo.mipLevels         = 1;
+        imageCreateInfo.arrayLayers       = 1;
+        imageCreateInfo.samples           = VK_SAMPLE_COUNT_1_BIT;
+        imageCreateInfo.tiling            = VK_IMAGE_TILING_OPTIMAL;
+        imageCreateInfo.usage             = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+        imageCreateInfo.initialLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
+        if(vkCreateImage(device, &imageCreateInfo, nullptr, &storageImage.image) != VK_SUCCESS){
+            throw std::runtime_error("failed to create Storage Image!");
+        }
+
+        VkMemoryRequirements memoryRequirements;
+        vkGetImageMemoryRequirements(device, storageImage.image, &memoryRequirements);
+        VkMemoryAllocateInfo memoryAllocateInfo{};
+	    memoryAllocateInfo.sType            = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        memoryAllocateInfo.allocationSize   = memoryRequirements.size;
+        memoryAllocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImage.memory) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate storage image memory!");
+        if (vkBindImageMemory(device, storageImage.image, storageImage.memory, 0) != VK_SUCCESS)
+            throw std::runtime_error("failed to bind storage image memory!");
+
+        VkImageViewCreateInfo colorImageViewCreateInfo{};
+	    colorImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        colorImageViewCreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+        colorImageViewCreateInfo.format                          = VK_FORMAT_B8G8R8A8_UNORM;
+        colorImageViewCreateInfo.subresourceRange                = {};
+        colorImageViewCreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        colorImageViewCreateInfo.subresourceRange.baseMipLevel   = 0;
+        colorImageViewCreateInfo.subresourceRange.levelCount     = 1;
+        colorImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+        colorImageViewCreateInfo.subresourceRange.layerCount     = 1;
+        colorImageViewCreateInfo.image                           = storageImage.image;
+        if (vkCreateImageView(device, &colorImageViewCreateInfo, nullptr, &storageImage.view) != VK_SUCCESS)
+            throw std::runtime_error("failed to create storage image view!");
+        VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+        setImageLayout(command_buffer, storageImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+        flushCommandBuffer(command_buffer, graphicsQueue);
+    }
+
     void createRenderPass() {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = swapChainImageFormat;
@@ -485,9 +554,8 @@ private:
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
             throw std::runtime_error("failed to create render pass!");
-        }
     }
 
     void createGraphicsPipeline() {
@@ -930,6 +998,194 @@ private:
             std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
         }
         return VK_FALSE;
+    }
+
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
+    }
+
+    void setImageLayout(VkCommandBuffer command_buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags dstMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)
+    {
+        // Create an image barrier object
+        VkImageMemoryBarrier barrier{};
+        barrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.oldLayout           = oldLayout;
+        barrier.newLayout           = newLayout;
+        barrier.image               = image;
+        barrier.subresourceRange    = subresourceRange;
+
+        // Source layouts (old)
+        // Source access mask controls actions that have to be finished on the old layout
+        // before it will be transitioned to the new layout
+        switch (oldLayout)
+        {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                // Image layout is undefined (or does not matter)
+                // Only valid as initial layout
+                // No flags required, listed only for completeness
+                barrier.srcAccessMask = 0;
+                break;
+
+            case VK_IMAGE_LAYOUT_PREINITIALIZED:
+                // Image is preinitialized
+                // Only valid as initial layout for linear images, preserves memory contents
+                // Make sure host writes have been finished
+                barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                // Image is a color attachment
+                // Make sure any writes to the color buffer have been finished
+                barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                // Image is a depth/stencil attachment
+                // Make sure any writes to the depth/stencil buffer have been finished
+                barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                // Image is a transfer source
+                // Make sure any reads from the image have been finished
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                // Image is a transfer destination
+                // Make sure any writes to the image have been finished
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                // Image is read by a shader
+                // Make sure any shader reads from the image have been finished
+                barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                break;
+            default:
+                // Other source layouts aren't handled (yet)
+                break;
+        }
+
+        // Target layouts (new)
+        // Destination access mask controls the dependency for the new image layout
+        switch (newLayout)
+        {
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                // Image will be used as a transfer destination
+                // Make sure any writes to the image have been finished
+                barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                // Image will be used as a transfer source
+                // Make sure any reads from the image have been finished
+                barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                // Image will be used as a color attachment
+                // Make sure any writes to the color buffer have been finished
+                barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                // Image layout will be used as a depth/stencil attachment
+                // Make sure any writes to depth/stencil buffer have been finished
+                barrier.dstAccessMask = barrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                break;
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                // Image will be read in a shader (sampler, input attachment)
+                // Make sure any writes to the image have been finished
+                if (barrier.srcAccessMask == 0)
+                {
+                    barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+                }
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                break;
+            default:
+                // Other source layouts aren't handled (yet)
+                break;
+        }
+
+        // Put barrier inside setup command buffer
+        vkCmdPipelineBarrier(command_buffer, srcMask, dstMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
+    VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin)
+    {
+        VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+        cmdBufAllocateInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdBufAllocateInfo.commandPool        = commandPool;
+        cmdBufAllocateInfo.level              = level;
+        cmdBufAllocateInfo.commandBufferCount = 1;
+
+        VkCommandBuffer command_buffer;
+        if(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &command_buffer) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate command buffer!");
+
+        // If requested, also start recording for the new command buffer
+        if (begin)
+        {
+            VkCommandBufferBeginInfo command_buffer_info{};
+            command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            if(vkBeginCommandBuffer(command_buffer, &command_buffer_info) != VK_SUCCESS)
+                throw std::runtime_error("failed to start recording command buffer!");
+        }
+
+        return command_buffer;
+    }
+
+    void flushCommandBuffer(VkCommandBuffer command_buffer, VkQueue queue, bool free = true, VkSemaphore signalSemaphore = VK_NULL_HANDLE) 
+    {
+        if (command_buffer == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
+            throw std::runtime_error("failed to flush command buffer!");
+
+        VkSubmitInfo submit_info{};
+        submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers    = &command_buffer;
+        if (signalSemaphore)
+        {
+            submit_info.pSignalSemaphores    = &signalSemaphore;
+            submit_info.signalSemaphoreCount = 1;
+        }
+
+        // Create fence to ensure that the command buffer has finished executing
+        VkFenceCreateInfo fence_info{};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_info.flags = VK_FLAGS_NONE;
+
+        VkFence fence;
+        if(vkCreateFence(device, &fence_info, nullptr, &fence) != VK_SUCCESS)
+            throw std::runtime_error("failed to create Fence while flushing command buffer!");
+
+        // Submit to the queue
+        VkResult result = vkQueueSubmit(queue, 1, &submit_info, fence);
+        // Wait for the fence to signal that command buffer has finished executing
+        if(vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT) != VK_SUCCESS)
+            throw std::runtime_error("failed to wait for the fence to signal that command buffer has finished executing!");
+
+        vkDestroyFence(device, fence, nullptr);
+
+        vkFreeCommandBuffers(device, commandPool, 1, &command_buffer);
     }
 };
 
