@@ -1,6 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
 #define VK_FLAGS_NONE 0
 #define DEFAULT_FENCE_TIMEOUT 100000000000
+#define GLM_FORCE_RADIANS
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/glm.hpp>
@@ -14,7 +15,7 @@
 #include <cstdint>
 #include <optional>
 #include <set>
-#include <cstdint> // Necessary for UINT32_MAX
+#include <cstdint>
 #include <chrono>
 
 const uint32_t WIDTH = 1600;
@@ -98,7 +99,7 @@ struct UniformBufferObject {
     glm::mat4 proj;
 };
 
-class HelloTriangleApplication {
+class VulkanRaytracer {
 public:
     void run() {
         initWindow();
@@ -208,12 +209,13 @@ private:
         createRayTracingPipeline();
         createShaderBindingTables();
         createDescriptorSets();
-
         createCommandBuffers();
         createSemaphores();
     }
 
     void mainLoop() {
+        int fps = 0;
+        double time = glfwGetTime();
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
             drawFrame();
@@ -235,6 +237,13 @@ private:
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
         }
+
+        vkDestroyBuffer(device, raygenShaderBindingTable, nullptr);
+        vkFreeMemory(device, raygenShaderBindingTableMemory, nullptr);
+        vkDestroyBuffer(device, missShaderBindingTable, nullptr);
+        vkFreeMemory(device, missShaderBindingTableMemory, nullptr);
+        vkDestroyBuffer(device, hitShaderBindingTable, nullptr);
+        vkFreeMemory(device, hitShaderBindingTableMemory, nullptr);
 
         vkDestroySwapchainKHR(device, swapChain, nullptr);
         
@@ -866,8 +875,8 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f) * camRotation, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
@@ -1103,8 +1112,8 @@ private:
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
         raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
-        if(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &graphicsPipeline));
-
+        if(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+            throw std::runtime_error("failed to create ray tracing pipeline!");
         vkDestroyShaderModule(device, raygenShaderModule, nullptr);
         vkDestroyShaderModule(device, missShaderModule, nullptr);
         vkDestroyShaderModule(device, rchitShaderModule, nullptr);
@@ -1881,7 +1890,7 @@ private:
 };
 
 int main() {
-    HelloTriangleApplication app;
+    VulkanRaytracer app;
 
     try {
         app.run();
