@@ -2,10 +2,12 @@
 #define VK_FLAGS_NONE 0
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 #define GLM_FORCE_RADIANS
+#define GLM_ENABLE_EXPERIMENTAL
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 #include <fstream>
 #include <stdexcept>
 #include <algorithm>
@@ -17,6 +19,12 @@
 #include <set>
 #include <cstdint>
 #include <chrono>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+#include <unordered_map>
 
 const uint32_t WIDTH = 1600;
 const uint32_t HEIGHT = 900;
@@ -97,6 +105,11 @@ struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
+};
+
+struct Vertex
+{
+    float pos[3];
 };
 
 class VulkanRaytracer {
@@ -181,6 +194,8 @@ private:
 
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
 
     void initWindow() {
         glfwInit();
@@ -203,6 +218,7 @@ private:
         createCommandPool();
         getExtensionFunctionPointers();
         createStorageImage();
+        loadModel("/viking_room.obj");
         createBottomLevelAccelerationStructure();
         createTopLevelAccelerationStructure();
         createUniformBuffer();
@@ -662,18 +678,42 @@ private:
         flushCommandBuffer(command_buffer, graphicsQueue);
     }
 
+     void loadModel(std::string Modelpath) {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn, err;
+
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, (MODEL_PATH+Modelpath).c_str())) {
+            throw std::runtime_error(warn + err);
+        }
+        uint32_t current_index = 0; 
+
+        for (const auto& shape : shapes) {
+            for (const auto& index : shape.mesh.indices) {
+                Vertex vertex{};
+                vertex = {
+                    attrib.vertices[3 * index.vertex_index + 0],
+                    attrib.vertices[3 * index.vertex_index + 1],
+                    attrib.vertices[3 * index.vertex_index + 2]
+                };
+
+                // vertex.texCoord = {
+                //     attrib.texcoords[2 * index.texcoord_index + 0],
+                //     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                // };
+
+                // vertex.color = {1.0f, 1.0f, 1.0f};
+                vertices.push_back(vertex);
+                indices.push_back(current_index);
+                current_index++;
+            }
+        }
+    }
+
     void createBottomLevelAccelerationStructure(){
-        struct Vertex
-        {
-            float pos[3];
-        };
-        std::vector<Vertex> vertices = {
-            {{ 1.0f,  1.0f, 0.0f}},
-            {{-1.0f,  1.0f, 0.0f}},
-            {{-1.0f, -1.0f, 0.0f}},
-            {{ 1.0f, -1.0f, 0.0f}}
-        };
-        std::vector<uint32_t> indices = {0, 1, 2, 0, 3, 2};
+        uint32_t numTriangles = static_cast<uint32_t>(vertices.size()) / 3;
+		uint32_t maxVertex = static_cast<uint32_t>(vertices.size());
         VkTransformMatrixKHR transformMatrix = {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
@@ -720,7 +760,7 @@ private:
         accelerationStructureGeometry.geometry.triangles.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
         accelerationStructureGeometry.geometry.triangles.vertexFormat  = VK_FORMAT_R32G32B32_SFLOAT;
         accelerationStructureGeometry.geometry.triangles.vertexData    = vertexDataDeviceAddress;
-        accelerationStructureGeometry.geometry.triangles.maxVertex     = 4;
+        accelerationStructureGeometry.geometry.triangles.maxVertex     = maxVertex;
         accelerationStructureGeometry.geometry.triangles.vertexStride  = sizeof(Vertex);
         accelerationStructureGeometry.geometry.triangles.indexType     = VK_INDEX_TYPE_UINT32;
         accelerationStructureGeometry.geometry.triangles.indexData     = indexDataDeviceAddress;
@@ -738,7 +778,7 @@ private:
         VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
         accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 
-        vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitiveCount, &accelerationStructureBuildSizesInfo);
+        vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numTriangles, &accelerationStructureBuildSizesInfo);
 
         createBuffer(accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR, bottomLevelAccelerationStructure.buffer, bottomLevelAccelerationStructure.memory);
 
@@ -763,7 +803,7 @@ private:
         accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.device_address;
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount                                           = 2;
+        accelerationStructureBuildRangeInfo.primitiveCount                                           = numTriangles;
         accelerationStructureBuildRangeInfo.primitiveOffset                                          = 0;
         accelerationStructureBuildRangeInfo.firstVertex                                              = 0;
         accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
