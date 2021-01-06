@@ -258,8 +258,6 @@ private:
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         }
         vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-        vkDestroyPipeline(device, rayTracingPipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
@@ -271,12 +269,10 @@ private:
         vkDestroyImage(device, storageImage.image, nullptr);
         vkFreeMemory(device, storageImage.memory, nullptr);
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
         createSwapChain();
         createImageViews();
         createRenderPass();
-        createRayTracingPipeline();
         createFramebuffers();
         createUniformBuffer();
         createStorageImage();
