@@ -164,7 +164,7 @@ private:
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkPipeline rayTracingPipeline;
     
     VkDescriptorPool descriptorPool;
     VkDescriptorSet descriptorSet;
@@ -196,13 +196,20 @@ private:
     VkSemaphore renderFinishedSemaphore;
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+    bool framebufferResized = false;
 
     void initWindow() {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Raytracing RTV", nullptr, nullptr);
+        glfwSetWindowUserPointer(window, this);
+        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    }
+
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        auto app = reinterpret_cast<VulkanRaytracer*>(glfwGetWindowUserPointer(window));
+        app->framebufferResized = true;
     }
 
     void initVulkan() {
@@ -239,6 +246,44 @@ private:
         vkDeviceWaitIdle(device);
     }
 
+    void handleResize(){
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(window, &width, &height);
+            glfwWaitEvents();
+        }
+        vkDeviceWaitIdle(device);
+        for (auto framebuffer : swapChainFramebuffers) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+        vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        vkDestroyPipeline(device, rayTracingPipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        vkDestroyRenderPass(device, renderPass, nullptr);
+        for (auto imageView : swapChainImageViews) {
+            vkDestroyImageView(device, imageView, nullptr);
+        }
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        vkDestroyBuffer(device, uniformBuffer, nullptr);
+        vkFreeMemory(device, uniformBufferMemory, nullptr);
+        vkDestroyImageView(device, storageImage.view, nullptr);
+        vkDestroyImage(device, storageImage.image, nullptr);
+        vkFreeMemory(device, storageImage.memory, nullptr);
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+        createSwapChain();
+        createImageViews();
+        createRenderPass();
+        createRayTracingPipeline();
+        createFramebuffers();
+        createUniformBuffer();
+        createStorageImage();
+        createDescriptorSets();
+        createCommandBuffers();
+    }
+
     void cleanup() {
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -246,7 +291,7 @@ private:
 
         vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
         
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        vkDestroyPipeline(device, rayTracingPipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -254,18 +299,21 @@ private:
             vkDestroyImageView(device, imageView, nullptr);
         }
 
-        vkDestroyBuffer(device, raygenShaderBindingTable, nullptr);
-        vkFreeMemory(device, raygenShaderBindingTableMemory, nullptr);
-        vkDestroyBuffer(device, missShaderBindingTable, nullptr);
-        vkFreeMemory(device, missShaderBindingTableMemory, nullptr);
-        vkDestroyBuffer(device, hitShaderBindingTable, nullptr);
-        vkFreeMemory(device, hitShaderBindingTableMemory, nullptr);
-
         vkDestroySwapchainKHR(device, swapChain, nullptr);
         
         vkDestroyBuffer(device, uniformBuffer, nullptr);
         vkFreeMemory(device, uniformBufferMemory, nullptr);
 
+
+        vkDestroyImageView(device, storageImage.view, nullptr);
+        vkDestroyImage(device, storageImage.image, nullptr);
+        vkFreeMemory(device, storageImage.memory, nullptr);
+        
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+        //-----
+    
         vkDestroyBuffer(device, topLevelAccelerationStructure.buffer, nullptr);
         vkFreeMemory(device, topLevelAccelerationStructure.memory, nullptr);
         vkDestroyAccelerationStructureKHR(device, topLevelAccelerationStructure.accelerationStructure, nullptr);
@@ -274,13 +322,6 @@ private:
         vkFreeMemory(device, bottomLevelAccelerationStructure.memory, nullptr);
         vkDestroyAccelerationStructureKHR(device, bottomLevelAccelerationStructure.accelerationStructure, nullptr);
 
-        vkDestroyImageView(device, storageImage.view, nullptr);
-        vkDestroyImage(device, storageImage.image, nullptr);
-        vkFreeMemory(device, storageImage.memory, nullptr);
-        
-        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-    
         vkDestroyBuffer(device, indexBuffer, nullptr);
         vkFreeMemory(device, indexBufferMemory, nullptr);
 
@@ -289,6 +330,13 @@ private:
 
         vkDestroyBuffer(device, transformBuffer, nullptr);
         vkFreeMemory(device, transformBufferMemory, nullptr);
+
+        vkDestroyBuffer(device, raygenShaderBindingTable, nullptr);
+        vkFreeMemory(device, raygenShaderBindingTableMemory, nullptr);
+        vkDestroyBuffer(device, missShaderBindingTable, nullptr);
+        vkFreeMemory(device, missShaderBindingTableMemory, nullptr);
+        vkDestroyBuffer(device, hitShaderBindingTable, nullptr);
+        vkFreeMemory(device, hitShaderBindingTableMemory, nullptr);
 
         vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
@@ -629,8 +677,8 @@ private:
     }
 
     void createStorageImage(){
-        storageImage.width = (uint32_t)WIDTH;
-	    storageImage.height = (uint32_t)HEIGHT;
+        storageImage.width = swapChainExtent.width;
+	    storageImage.height = swapChainExtent.height;
         
         VkImageCreateInfo imageCreateInfo{};
 	    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1153,7 +1201,7 @@ private:
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
         raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
-        if(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+        if(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &rayTracingPipeline) != VK_SUCCESS)
             throw std::runtime_error("failed to create ray tracing pipeline!");
         vkDestroyShaderModule(device, raygenShaderModule, nullptr);
         vkDestroyShaderModule(device, missShaderModule, nullptr);
@@ -1167,7 +1215,7 @@ private:
 		const uint32_t sbtSize = groupCount * handleSizeAligned;
 
 		std::vector<uint8_t> shaderHandleStorage(sbtSize);
-		if(vkGetRayTracingShaderGroupHandlesKHR(device, graphicsPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()) != VK_SUCCESS)
+		if(vkGetRayTracingShaderGroupHandlesKHR(device, rayTracingPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()) != VK_SUCCESS)
             throw std::runtime_error("failed to get ray tracing shader group handles!");
 
 		const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -1277,10 +1325,10 @@ private:
             /*
                 Dispatch the ray tracing commands
             */
-            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, graphicsPipeline);
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rayTracingPipeline);
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-            vkCmdTraceRaysKHR(commandBuffers[i], &raygen_shader_sbt_entry, &miss_shader_sbt_entry, &hit_shader_sbt_entry, &callable_shader_sbt_entry, WIDTH, HEIGHT, 1);
+            vkCmdTraceRaysKHR(commandBuffers[i], &raygen_shader_sbt_entry, &miss_shader_sbt_entry, &hit_shader_sbt_entry, &callable_shader_sbt_entry, swapChainExtent.width, swapChainExtent.height, 1);
 
             /*
                 Copy ray tracing output to swap chain image
@@ -1297,7 +1345,7 @@ private:
             copy_region.srcOffset      = {0, 0, 0};
             copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
             copy_region.dstOffset      = {0, 0, 0};
-            copy_region.extent         = {WIDTH, HEIGHT, 1};
+            copy_region.extent         = {swapChainExtent.width, swapChainExtent.height, 1};
             vkCmdCopyImage(commandBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
             // Transition swap chain image back for presentation
@@ -1314,8 +1362,13 @@ private:
 
     void drawFrame() {
         uint32_t imageIndex;
-        if (vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex) != VK_SUCCESS)
-                throw std::runtime_error("failed to acquire next Image!");
+        VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            handleResize();
+            return;
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
 
         updateUniformBuffer();
 
@@ -1332,9 +1385,10 @@ private:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
-
+        }
+        
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
@@ -1344,7 +1398,13 @@ private:
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = nullptr; // Optional
-        vkQueuePresentKHR(presentQueue, &presentInfo);
+        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+            framebufferResized = false;
+            handleResize();
+        } else if (result != VK_SUCCESS) {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
         vkQueueWaitIdle(presentQueue);
     }
 
