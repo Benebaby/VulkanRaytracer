@@ -229,7 +229,7 @@ private:
         createCommandPool();
         getExtensionFunctionPointers();
         createStorageImage();
-        loadModel("/dragon.obj");
+        loadModel("/viking_room.obj");
         createBottomLevelAccelerationStructure();
         createTopLevelAccelerationStructure();
         createUniformBuffer();
@@ -736,6 +736,8 @@ private:
             throw std::runtime_error(warn + err);
         }
         uint32_t current_index = 0; 
+        bool hasNormals = attrib.normals.size() > 0;
+        bool hasUVs = attrib.texcoords.size() > 0;
 
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
@@ -743,13 +745,22 @@ private:
                 vertex.position[0] = attrib.vertices[3 * index.vertex_index + 0];
                 vertex.position[1] = attrib.vertices[3 * index.vertex_index + 1];
                 vertex.position[2] = attrib.vertices[3 * index.vertex_index + 2];
-                vertex.normal[0] = attrib.normals[3 * index.normal_index + 0];
-                vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
-                vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
-                // vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
-                // vertex.texture[1] = attrib.texcoords[2 * index.texcoord_index + 1];
-                vertex.texture[0] = 0;
-                vertex.texture[1] = 0;
+                if(hasNormals){
+                    vertex.normal[0] = attrib.normals[3 * index.normal_index + 0];
+                    vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
+                    vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
+                }else{
+                    vertex.normal[0] = 0;
+                    vertex.normal[1] = 0;
+                    vertex.normal[2] = 0;
+                }
+                if(hasUVs){
+                    vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
+                    vertex.texture[1] = attrib.texcoords[2 * index.texcoord_index + 1];
+                }else{
+                    vertex.texture[0] = 0;
+                    vertex.texture[1] = 0;
+                }
 
                 vertices.push_back(vertex);
                 indices.push_back(current_index);
@@ -974,11 +985,11 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
         //sponza 
         //ubo.view = glm::lookAt(glm::vec3(0.0f, 150.0f, 150.0f) * camRotation, glm::vec3(0.0f, 200.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
-        ubo.view = glm::lookAt(glm::vec3(0.75f, 0.4f, 0.75f) * camRotation, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.view = glm::lookAt(glm::vec3(1.5, 1.5, 1.1) * camRotation, glm::vec3(0.0f, 0.0f, 0.3f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
@@ -1143,7 +1154,7 @@ private:
         acceleration_structure_layout_binding.binding         = 0;
         acceleration_structure_layout_binding.descriptorType  = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         acceleration_structure_layout_binding.descriptorCount = 1;
-        acceleration_structure_layout_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+        acceleration_structure_layout_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding result_image_layout_binding{};
         result_image_layout_binding.binding         = 1;
@@ -1155,7 +1166,7 @@ private:
         uniform_buffer_binding.binding         = 2;
         uniform_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uniform_buffer_binding.descriptorCount = 1;
-        uniform_buffer_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+        uniform_buffer_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
 
         VkDescriptorSetLayoutBinding vertex_buffer_binding{};
         vertex_buffer_binding.binding         = 3;
@@ -1194,11 +1205,13 @@ private:
 
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
-        auto raygenShaderCode = readFile("/rgen.spv");
-        auto missShaderCode = readFile("/rmiss.spv");
-        auto rchitShaderCode = readFile("/rchit.spv");
+        auto raygenShaderCode = readFile("/raygen.spv");
+        auto missShaderCode = readFile("/miss.spv");
+        auto missShadowShaderCode = readFile("/shadow.spv");
+        auto rchitShaderCode = readFile("/closesthit.spv");
         VkShaderModule raygenShaderModule = createShaderModule(raygenShaderCode);
         VkShaderModule missShaderModule = createShaderModule(missShaderCode);
+        VkShaderModule missShadowShaderModule = createShaderModule(missShadowShaderCode);
         VkShaderModule rchitShaderModule = createShaderModule(rchitShaderCode);
 
         VkPipelineShaderStageCreateInfo raygenShaderStageInfo{};
@@ -1233,6 +1246,16 @@ private:
 		missGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 		shaderGroups.push_back(missGroupCreateInfo);
 
+        VkPipelineShaderStageCreateInfo missShadowShaderStageInfo{};
+        missShadowShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        missShadowShaderStageInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+        missShadowShaderStageInfo.module = missShadowShaderModule;
+        missShadowShaderStageInfo.pName = "main";
+        shaderStages.push_back(missShadowShaderStageInfo);
+
+        missGroupCreateInfo.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+        shaderGroups.push_back(missGroupCreateInfo);
+
         VkPipelineShaderStageCreateInfo rchitShaderStageInfo{};
         rchitShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         rchitShaderStageInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
@@ -1255,12 +1278,13 @@ private:
         raytracingPipelineCreateInfo.pStages                      = shaderStages.data();
         raytracingPipelineCreateInfo.groupCount                   = static_cast<uint32_t>(shaderGroups.size());
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
-        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
         if(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &rayTracingPipeline) != VK_SUCCESS)
             throw std::runtime_error("failed to create ray tracing pipeline!");
         vkDestroyShaderModule(device, raygenShaderModule, nullptr);
         vkDestroyShaderModule(device, missShaderModule, nullptr);
+        vkDestroyShaderModule(device, missShadowShaderModule, nullptr);
         vkDestroyShaderModule(device, rchitShaderModule, nullptr);
     }
 
@@ -1277,7 +1301,7 @@ private:
 		const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		const VkMemoryPropertyFlags memoryUsageFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		createBuffer(handleSize, bufferUsageFlags, memoryUsageFlags, raygenShaderBindingTable, raygenShaderBindingTableMemory);
-		createBuffer(handleSize, bufferUsageFlags, memoryUsageFlags, missShaderBindingTable, missShaderBindingTableMemory);
+		createBuffer(handleSize * 2, bufferUsageFlags, memoryUsageFlags, missShaderBindingTable, missShaderBindingTableMemory);
 		createBuffer(handleSize, bufferUsageFlags, memoryUsageFlags, hitShaderBindingTable, hitShaderBindingTableMemory);
 
         void* raygenShaderBindingTableData;
@@ -1287,12 +1311,12 @@ private:
 
         void* missShaderBindingTableData;
         vkMapMemory(device, missShaderBindingTableMemory, 0, handleSize, 0, &missShaderBindingTableData);
-            memcpy(missShaderBindingTableData, shaderHandleStorage.data() + handleSizeAligned, handleSize);
+            memcpy(missShaderBindingTableData, shaderHandleStorage.data() + handleSizeAligned, handleSize * 2);
         vkUnmapMemory(device, missShaderBindingTableMemory);
 
         void* hitShaderBindingTableData;
         vkMapMemory(device, hitShaderBindingTableMemory, 0, handleSize, 0, &hitShaderBindingTableData);
-            memcpy(hitShaderBindingTableData, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
+            memcpy(hitShaderBindingTableData, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
         vkUnmapMemory(device, hitShaderBindingTableMemory);
     }
 
@@ -1369,7 +1393,7 @@ private:
             VkStridedDeviceAddressRegionKHR miss_shader_sbt_entry{};
             miss_shader_sbt_entry.deviceAddress = getBufferDeviceAddress(missShaderBindingTable);
             miss_shader_sbt_entry.stride        = handle_size_aligned;
-            miss_shader_sbt_entry.size          = handle_size_aligned;
+            miss_shader_sbt_entry.size          = handle_size_aligned * 2;
 
             VkStridedDeviceAddressRegionKHR hit_shader_sbt_entry{};
             hit_shader_sbt_entry.deviceAddress = getBufferDeviceAddress(hitShaderBindingTable);

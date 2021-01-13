@@ -19,6 +19,7 @@
 #extension GL_EXT_ray_tracing : enable
 
 layout(location = 0) rayPayloadInEXT vec3 hitValue;
+layout(location = 2) rayPayloadEXT bool shadowed;
 hitAttributeEXT vec3 attribs;
 
 struct Vertex
@@ -36,7 +37,7 @@ layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
 
 void main()
 {
-  vec4 lightPos = vec4(100, 100, 0, 1);
+  vec4 lightPos = vec4(1, 1.5, 1, 1);
 
   uint i0 = indices.i[3 * gl_PrimitiveID];
   uint i1 = indices.i[3 * gl_PrimitiveID + 1];
@@ -52,11 +53,24 @@ void main()
   vec2 t2 = vertices.v[i2].texture;
 
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-  vec3 pos = vec3(v0 * barycentricCoords.x + v1 * barycentricCoords.y + v2 * barycentricCoords.z) / 3;
+  vec3 position = v0 * barycentricCoords.x + v1 * barycentricCoords.y + v2 * barycentricCoords.z;
   vec3 normal = normalize(n0 * barycentricCoords.x + n1 * barycentricCoords.y + n2 * barycentricCoords.z);
-  vec2 textureCoord = vec2(t0 * barycentricCoords.x + t1 * barycentricCoords.y + t2 * barycentricCoords.z) / 3;
+  vec2 textureCoord = t0 * barycentricCoords.x + t1 * barycentricCoords.y + t2 * barycentricCoords.z;
   
-  vec3 lightVector = normalize(lightPos.xyz - pos);
-	float dot_product = max(dot(lightVector, normal), 0.2);
+  vec3 lightVector = normalize(lightPos.xyz - position);
+	float dot_product = max(dot(lightVector, normal), 0.3);
 	hitValue = vec3(1.0) * dot_product;
+
+  if(dot_product > 0){
+    // Shadow casting
+    float tmin = 0.001;
+    float tmax = length(lightPos.xyz);
+    vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    shadowed = true;  
+    // Trace shadow ray and offset indices to match shadow hit/miss shader group indices
+    traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, position, tmin, lightVector, tmax, 2);
+    if (shadowed) {
+      hitValue *= 0.3;
+    }
+  }
 }
