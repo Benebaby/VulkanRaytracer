@@ -102,14 +102,18 @@ struct StorageImage {
 };
 
 struct UniformBufferObject {
-    glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
 };
 
 struct Vertex
 {
-    float pos[3];
+    float position[3];
+    float pad;
+    float normal[3];
+    float pad1;
+    float texture[2];
+    float pad2[2];
 };
 
 class VulkanRaytracer {
@@ -736,18 +740,17 @@ private:
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 Vertex vertex{};
-                vertex = {
-                    attrib.vertices[3 * index.vertex_index + 0],
-                    attrib.vertices[3 * index.vertex_index + 1],
-                    attrib.vertices[3 * index.vertex_index + 2]
-                };
+                vertex.position[0] = attrib.vertices[3 * index.vertex_index + 0];
+                vertex.position[1] = attrib.vertices[3 * index.vertex_index + 1];
+                vertex.position[2] = attrib.vertices[3 * index.vertex_index + 2];
+                vertex.normal[0] = attrib.normals[3 * index.normal_index + 0];
+                vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
+                vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
+                // vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
+                // vertex.texture[1] = attrib.texcoords[2 * index.texcoord_index + 1];
+                vertex.texture[0] = 0;
+                vertex.texture[1] = 0;
 
-                // vertex.texCoord = {
-                //     attrib.texcoords[2 * index.texcoord_index + 0],
-                //     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                // };
-
-                // vertex.color = {1.0f, 1.0f, 1.0f};
                 vertices.push_back(vertex);
                 indices.push_back(current_index);
                 current_index++;
@@ -768,7 +771,7 @@ private:
 	    auto indexBufferSize  = indices.size() * sizeof(uint32_t);
         auto transformBufferSize = sizeof(transformMatrix);
 
-        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
         createBuffer(vertexBufferSize, bufferUsageFlags, memoryPropertyFlags, vertexBuffer, vertexBufferMemory);
@@ -853,11 +856,16 @@ private:
         accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
         std::vector<VkAccelerationStructureBuildRangeInfoKHR *> accelerationBuildStructureRangeInfos = {&accelerationStructureBuildRangeInfo};
 
-        VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-        vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-        flushCommandBuffer(command_buffer, graphicsQueue);
-        vkFreeMemory(device, scratchBuffer.memory, nullptr);
-        vkDestroyBuffer(device, scratchBuffer.buffer, nullptr);
+        if (accelerationStructureFeatures.accelerationStructureHostCommands)
+		{
+			vkBuildAccelerationStructuresKHR(device, VK_NULL_HANDLE, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
+		}else{
+            VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+            vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
+            flushCommandBuffer(command_buffer, graphicsQueue);
+            vkFreeMemory(device, scratchBuffer.memory, nullptr);
+            vkDestroyBuffer(device, scratchBuffer.buffer, nullptr);
+        }
 
         VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
         accelerationDeviceAddressInfo.sType                 = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
@@ -939,11 +947,17 @@ private:
         accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
         std::vector<VkAccelerationStructureBuildRangeInfoKHR *> accelerationBuildStructureRangeInfos = {&accelerationStructureBuildRangeInfo};
 
-        VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-        vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-        flushCommandBuffer(command_buffer, graphicsQueue);
-        vkFreeMemory(device, scratchBuffer.memory, nullptr);
-        vkDestroyBuffer(device, scratchBuffer.buffer, nullptr);
+        if (accelerationStructureFeatures.accelerationStructureHostCommands)
+		{
+			vkBuildAccelerationStructuresKHR(device, VK_NULL_HANDLE, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
+		}else{
+            VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+            vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
+            flushCommandBuffer(command_buffer, graphicsQueue);
+            vkFreeMemory(device, scratchBuffer.memory, nullptr);
+            vkDestroyBuffer(device, scratchBuffer.buffer, nullptr);
+        }
+
 
         VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
         accelerationDeviceAddressInfo.sType                 = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
@@ -960,8 +974,10 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-        // ubo.view = glm::lookAt(glm::vec3(0.0f, 800.0f, 900.0f) * camRotation, glm::vec3(0.0f, 500.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+        //sponza 
+        //ubo.view = glm::lookAt(glm::vec3(0.0f, 150.0f, 150.0f) * camRotation, glm::vec3(0.0f, 200.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // dragon
         ubo.view = glm::lookAt(glm::vec3(0.75f, 0.4f, 0.75f) * camRotation, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
@@ -983,7 +999,8 @@ private:
         std::vector<VkDescriptorPoolSize> poolSizes = {
             {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1}
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 }
         };
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1027,10 +1044,10 @@ private:
         resultImageWrite.pImageInfo      = &storageImageDescriptor;
         resultImageWrite.descriptorCount = 1;
 
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
+        VkDescriptorBufferInfo uniformBufferDescriptor{};
+        uniformBufferDescriptor.buffer = uniformBuffer;
+        uniformBufferDescriptor.offset = 0;
+        uniformBufferDescriptor.range = sizeof(UniformBufferObject);
 
         VkWriteDescriptorSet uniformBufferWrite{};
         uniformBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1039,14 +1056,42 @@ private:
         uniformBufferWrite.dstArrayElement = 0;
         uniformBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uniformBufferWrite.descriptorCount = 1;
-        uniformBufferWrite.pBufferInfo = &bufferInfo;
-        uniformBufferWrite.pImageInfo = nullptr; // Optional
-        uniformBufferWrite.pTexelBufferView = nullptr; // Optional
+        uniformBufferWrite.pBufferInfo = &uniformBufferDescriptor;
+
+        VkDescriptorBufferInfo vertexBufferDescriptor{};
+        vertexBufferDescriptor.buffer = vertexBuffer;
+        vertexBufferDescriptor.offset = 0;
+        vertexBufferDescriptor.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet vertexBufferWrite{};
+        vertexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        vertexBufferWrite.dstSet = descriptorSet;
+        vertexBufferWrite.dstBinding = 3;
+        vertexBufferWrite.dstArrayElement = 0;
+        vertexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        vertexBufferWrite.descriptorCount = 1;
+        vertexBufferWrite.pBufferInfo = &vertexBufferDescriptor;
+
+        VkDescriptorBufferInfo indexBufferDescriptor{};
+        indexBufferDescriptor.buffer = indexBuffer;
+        indexBufferDescriptor.offset = 0;
+        indexBufferDescriptor.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet indexBufferWrite{};
+        indexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        indexBufferWrite.dstSet = descriptorSet;
+        indexBufferWrite.dstBinding = 4;
+        indexBufferWrite.dstArrayElement = 0;
+        indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        indexBufferWrite.descriptorCount = 1;
+        indexBufferWrite.pBufferInfo = &indexBufferDescriptor;
 
         std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
             accelerationStructureWrite,
 	        resultImageWrite,
-            uniformBufferWrite
+            uniformBufferWrite,
+            vertexBufferWrite,
+            indexBufferWrite
         };
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1112,10 +1157,24 @@ private:
         uniform_buffer_binding.descriptorCount = 1;
         uniform_buffer_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
+        VkDescriptorSetLayoutBinding vertex_buffer_binding{};
+        vertex_buffer_binding.binding         = 3;
+        vertex_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        vertex_buffer_binding.descriptorCount = 1;
+        vertex_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+        VkDescriptorSetLayoutBinding index_buffer_binding{};
+        index_buffer_binding.binding         = 4;
+        index_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        index_buffer_binding.descriptorCount = 1;
+        index_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             acceleration_structure_layout_binding,
             result_image_layout_binding,
-            uniform_buffer_binding
+            uniform_buffer_binding,
+            vertex_buffer_binding,
+            index_buffer_binding
         };
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
