@@ -30,47 +30,47 @@ struct Vertex
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 2, set = 0) uniform CameraProperties {mat4 view; mat4 proj;} cam;
+layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
 layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
 
 
 void main()
 {
-  vec4 lightPos = vec4(1, 1.5, 1, 1);
+  vec4 lightPos = ubo.light;
 
   uint i0 = indices.i[3 * gl_PrimitiveID];
   uint i1 = indices.i[3 * gl_PrimitiveID + 1];
   uint i2 = indices.i[3 * gl_PrimitiveID + 2];
-  vec3 v0 = vertices.v[i0].pos;
-  vec3 v1 = vertices.v[i1].pos;
-  vec3 v2 = vertices.v[i2].pos;
-  vec3 n0 = vertices.v[i0].normal;
-  vec3 n1 = vertices.v[i1].normal;
-  vec3 n2 = vertices.v[i2].normal;
-  vec2 t0 = vertices.v[i0].texture;
-  vec2 t1 = vertices.v[i1].texture;
-  vec2 t2 = vertices.v[i2].texture;
-
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-  vec3 position = v0 * barycentricCoords.x + v1 * barycentricCoords.y + v2 * barycentricCoords.z;
-  vec3 normal = normalize(n0 * barycentricCoords.x + n1 * barycentricCoords.y + n2 * barycentricCoords.z);
-  vec2 textureCoord = t0 * barycentricCoords.x + t1 * barycentricCoords.y + t2 * barycentricCoords.z;
-  
-  vec3 lightVector = normalize(lightPos.xyz - position);
-	float dot_product = max(dot(lightVector, normal), 0.3);
-	hitValue = vec3(1.0) * dot_product;
 
+  vec3 position = vertices.v[i0].pos * barycentricCoords.x + vertices.v[i1].pos * barycentricCoords.y + vertices.v[i2].pos * barycentricCoords.z;
+  vec3 normal = normalize(vertices.v[i0].normal * barycentricCoords.x + vertices.v[i1].normal * barycentricCoords.y + vertices.v[i2].normal * barycentricCoords.z);
+  vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
+  
+  vec3 lightVector;
+  if(lightPos.w > 0.0){
+    lightVector = normalize(lightPos.xyz - position);
+  }else{
+    lightVector = normalize(lightPos.xyz);
+  }
+	float dot_product = max(dot(lightVector, normal), 0.1);
+	hitValue = vec3(dot_product);
+
+  //only triangles faced towards the light are worth a shadow ray
   if(dot_product > 0){
-    // Shadow casting
     float tmin = 0.001;
-    float tmax = length(lightPos.xyz);
-    vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    float tmax = 0;
+    if(lightPos.w > 0.0){
+      tmax = distance(lightPos.xyz, position);
+    }else{
+      tmax = 10000.0;
+    }
     shadowed = true;  
-    // Trace shadow ray and offset indices to match shadow hit/miss shader group indices
+    // tracing the ray until the first hit, dont call the hit shader only the miss shader, ignore transparent objects
     traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, position, tmin, lightVector, tmax, 2);
     if (shadowed) {
-      hitValue *= 0.3;
+      hitValue = vec3(0.1);
     }
   }
 }

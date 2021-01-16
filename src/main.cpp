@@ -104,6 +104,7 @@ struct StorageImage {
 struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
+    glm::vec4 light;
 };
 
 struct Vertex
@@ -229,7 +230,7 @@ private:
         createCommandPool();
         getExtensionFunctionPointers();
         createStorageImage();
-        loadModel("/viking_room.obj");
+        loadModel("/sponza.obj");
         createBottomLevelAccelerationStructure();
         createTopLevelAccelerationStructure();
         createUniformBuffer();
@@ -985,13 +986,20 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
-        //sponza 
-        //ubo.view = glm::lookAt(glm::vec3(0.0f, 150.0f, 150.0f) * camRotation, glm::vec3(0.0f, 200.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+        // sponza 
+        ubo.view = glm::lookAt(glm::vec3(6.f, 6.0f, 0.f), glm::vec3(0.0f, 4.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // viking_room
+        // ubo.view = glm::lookAt(glm::vec3(-1.5, 1.1, 1.5), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
-        ubo.view = glm::lookAt(glm::vec3(1.5, 1.5, 1.1) * camRotation, glm::vec3(0.0f, 0.0f, 0.3f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        // ubo.view = glm::lookAt(glm::vec3(0.75, 0.6, 0.75), glm::vec3(0.0f, 0.3f, 0), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
         ubo.proj[1][1] *= -1;
+
+        ubo.view = glm::inverse(ubo.view);
+        ubo.proj = glm::inverse(ubo.proj);
+
+        ubo.light = glm::vec4(glm::vec3(1.f, 6.0f, 1.f) * camRotation, 1.0f);
 
         void* data;
         vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
