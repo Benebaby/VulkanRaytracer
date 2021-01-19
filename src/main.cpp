@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <chrono>
 
+#include <glm/gtx/string_cast.hpp>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -886,30 +888,60 @@ private:
     }
 
     void createTopLevelAccelerationStructure(){
-        VkTransformMatrixKHR transformMatrix = {
+        VkTransformMatrixKHR transformMatrix0 = {
+            1.1f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.1f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.1f, 0.0f
+        };
+        VkTransformMatrixKHR transformMatrix1 = {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f
+            0.0f, 0.0f, 1.0f, 20.0f
+        };
+        VkTransformMatrixKHR transformMatrix2 = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, -20.0f
         };
 
-        VkAccelerationStructureInstanceKHR accelerationStructureInstance{};
-        accelerationStructureInstance.transform                              = transformMatrix;
-        accelerationStructureInstance.instanceCustomIndex                    = 0;
-        accelerationStructureInstance.mask                                   = 0xFF;
-        accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
-        accelerationStructureInstance.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
+        accelerationStructureInstance0.transform                              = transformMatrix0;
+        accelerationStructureInstance0.instanceCustomIndex                    = 0;
+        accelerationStructureInstance0.mask                                   = 0xFF;
+        accelerationStructureInstance0.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance0.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance0.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
+        accelerationStructureInstance1.transform                              = transformMatrix1;
+        accelerationStructureInstance1.instanceCustomIndex                    = 1;
+        accelerationStructureInstance1.mask                                   = 0xFF;
+        accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance1.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance2{};
+        accelerationStructureInstance2.transform                              = transformMatrix2;
+        accelerationStructureInstance2.instanceCustomIndex                    = 2;
+        accelerationStructureInstance2.mask                                   = 0xFF;
+        accelerationStructureInstance2.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance2.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance2.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+
+
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance2};
+        VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
         VkBuffer instancesBuffer;
         VkDeviceMemory instancesBufferMemory;
-		createBuffer(sizeof(VkAccelerationStructureInstanceKHR), VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, instancesBuffer, instancesBufferMemory);
+		createBuffer(geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, instancesBuffer, instancesBufferMemory);
         void* instancesBufferData;
-        vkMapMemory(device, instancesBufferMemory, 0, sizeof(VkAccelerationStructureInstanceKHR), 0, &instancesBufferData);
-            memcpy(instancesBufferData, &accelerationStructureInstance, sizeof(VkAccelerationStructureInstanceKHR));
+        vkMapMemory(device, instancesBufferMemory, 0, geometryInstancesSize, 0, &instancesBufferData);
+            memcpy(instancesBufferData, geometryInstances.data(), geometryInstancesSize);
         vkUnmapMemory(device, instancesBufferMemory);
 
-        VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
-	    instanceDataDeviceAddress.deviceAddress = getBufferDeviceAddress(instancesBuffer);
+        VkDeviceOrHostAddressConstKHR instancesDataDeviceAddress{};
+	    instancesDataDeviceAddress.deviceAddress = getBufferDeviceAddress(instancesBuffer);
 
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
         accelerationStructureGeometry.sType                              = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -917,7 +949,7 @@ private:
         accelerationStructureGeometry.flags                              = VK_GEOMETRY_OPAQUE_BIT_KHR;
         accelerationStructureGeometry.geometry.instances.sType           = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
         accelerationStructureGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
-        accelerationStructureGeometry.geometry.instances.data            = instanceDataDeviceAddress;
+        accelerationStructureGeometry.geometry.instances.data            = instancesDataDeviceAddress;
 
         VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
         accelerationStructureBuildGeometryInfo.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -926,7 +958,7 @@ private:
         accelerationStructureBuildGeometryInfo.geometryCount = 1;
         accelerationStructureBuildGeometryInfo.pGeometries   = &accelerationStructureGeometry;
 
-        const uint32_t primitiveCount = 1;
+        const uint32_t primitiveCount = (uint32_t) geometryInstances.size();
 
         VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
         accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
@@ -953,7 +985,7 @@ private:
         accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.device_address;
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount                                           = 1;
+        accelerationStructureBuildRangeInfo.primitiveCount                                           = (uint32_t) geometryInstances.size();
         accelerationStructureBuildRangeInfo.primitiveOffset                                          = 0;
         accelerationStructureBuildRangeInfo.firstVertex                                              = 0;
         accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
@@ -988,7 +1020,7 @@ private:
         UniformBufferObject ubo{};
         glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         // sponza 
-        ubo.view = glm::lookAt(glm::vec3(6.f, 6.0f, 0.f), glm::vec3(0.0f, 4.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.view = glm::lookAt(glm::vec3(35.f, 35.0f, 0.f), glm::vec3(0.0f, 4.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // viking_room
         // ubo.view = glm::lookAt(glm::vec3(-1.5, 1.1, 1.5), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
@@ -999,7 +1031,7 @@ private:
         ubo.view = glm::inverse(ubo.view);
         ubo.proj = glm::inverse(ubo.proj);
 
-        ubo.light = glm::vec4(glm::vec3(1.f, 6.0f, 1.f) * camRotation, 1.0f);
+        ubo.light = glm::vec4(glm::vec3(5.f, 15.0f, 5.f) * camRotation, 1.0f);
 
         void* data;
         vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
