@@ -28,14 +28,7 @@
 #include <tiny_obj_loader.h>
 #include <unordered_map>
 
-const uint32_t WIDTH = 1600;
-const uint32_t HEIGHT = 900;
-const bool enableValidationLayers = true;
-
-const std::vector<const char*> validationLayers = {
-    "VK_LAYER_KHRONOS_validation",
-    "VK_LAYER_LUNARG_monitor"
-};
+#include "Instance.h"
 
 const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -47,22 +40,6 @@ const std::vector<const char*> deviceExtensions = {
     VK_KHR_SPIRV_1_4_EXTENSION_NAME,
     VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME
 };
-
-VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (func != nullptr) {
-        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-    } else {
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-    }
-}
-
-void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (func != nullptr) {
-        func(instance, debugMessenger, pAllocator);
-    }
-}
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -122,16 +99,13 @@ struct Vertex
 class VulkanRaytracer {
 public:
     void run() {
-        initWindow();
         initVulkan();
         mainLoop();
         cleanup();
     }
 
 private:
-    GLFWwindow* window;
-
-    VkInstance instance;
+    Instance* m_instance;
 
     PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
     PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
@@ -145,7 +119,6 @@ private:
     PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
 
     VkDebugUtilsMessengerEXT debugMessenger;
-    VkSurfaceKHR surface;
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
@@ -203,26 +176,16 @@ private:
     VkSemaphore renderFinishedSemaphore;
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
-    bool framebufferResized = false;
 
-    void initWindow() {
-        glfwInit();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Raytracing RTV", nullptr, nullptr);
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    }
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<VulkanRaytracer*>(glfwGetWindowUserPointer(window));
-        app->framebufferResized = true;
-    }
+    const std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation",
+        "VK_LAYER_LUNARG_monitor"
+    };
 
     void initVulkan() {
-        createInstance();
-        setupDebugMessenger();
-        createSurface();
+        m_instance = new Instance("Vulkan Raytracing RTV", 1600, 900, VK_API_VERSION_1_2, validationLayers);
+        m_instance->addExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        m_instance->createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
@@ -244,9 +207,7 @@ private:
     }
 
     void mainLoop() {
-        int fps = 0;
-        double time = glfwGetTime();
-        while (!glfwWindowShouldClose(window)) {
+        while (!glfwWindowShouldClose(m_instance->getWindow())) {
             glfwPollEvents();
             drawFrame();
         }
@@ -255,9 +216,9 @@ private:
 
     void handleResize(){
         int width = 0, height = 0;
-        glfwGetFramebufferSize(window, &width, &height);
+        glfwGetFramebufferSize(m_instance->getWindow(), &width, &height);
         while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window, &width, &height);
+            glfwGetFramebufferSize(m_instance->getWindow(), &width, &height);
             glfwWaitEvents();
         }
         vkDeviceWaitIdle(device);
@@ -346,86 +307,13 @@ private:
 
         vkDestroyCommandPool(device, commandPool, nullptr);
         vkDestroyDevice(device, nullptr);
-
-        if (enableValidationLayers) {
-            DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-        }
-
-        vkDestroySurfaceKHR(instance, surface, nullptr);
-        vkDestroyInstance(instance, nullptr);
-
-        glfwDestroyWindow(window);
-
-        glfwTerminate();
-    }
-
-    void createInstance() {
-        if (enableValidationLayers && !checkValidationLayerSupport()) {
-            throw std::runtime_error("validation layers requested, but not available!");
-        }
-
-        VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "VulkanRaytracer";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.pEngineName = "RTV";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_2;
-
-        VkInstanceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-
-        auto extensions = getRequiredExtensions();
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-        createInfo.ppEnabledExtensionNames = extensions.data();
-
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-        if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-
-            populateDebugMessengerCreateInfo(debugCreateInfo);
-            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
-        } else {
-            createInfo.enabledLayerCount = 0;
-
-            createInfo.pNext = nullptr;
-        }
-
-        if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create instance!");
-        }
-    }
-
-    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
-        createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = debugCallback;
-    }
-
-    void setupDebugMessenger() {
-        if (!enableValidationLayers) return;
-
-        VkDebugUtilsMessengerCreateInfoEXT createInfo;
-        populateDebugMessengerCreateInfo(createInfo);
-
-        if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-            throw std::runtime_error("failed to set up debug messenger!");
-        }
-    }
-
-    void createSurface() {
-        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create window surface!");
-        }
+        
+        m_instance->destroy();
     }
 
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+        vkEnumeratePhysicalDevices(m_instance->getHandle(), &deviceCount, nullptr);
 
         if (deviceCount == 0) {
             throw std::runtime_error("failed to find GPUs with Vulkan support!");
@@ -446,7 +334,7 @@ private:
         deviceFeatures2.pNext = &rayTracingPipelineFeatures;
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+        vkEnumeratePhysicalDevices(m_instance->getHandle(), &deviceCount, devices.data());
 
         for (const auto& device : devices) {
             if (isDeviceSuitable(device)) {
@@ -539,7 +427,7 @@ private:
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
         createInfo.pNext = &deviceFeatures2;
-        if (enableValidationLayers) {
+        if (m_instance->hasValidation()) {
             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
             createInfo.ppEnabledLayerNames = validationLayers.data();
         } else {
@@ -568,7 +456,7 @@ private:
 
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = surface;
+        createInfo.surface = m_instance->getSurface();
 
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
@@ -1519,8 +1407,8 @@ private:
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = nullptr; // Optional
         result = vkQueuePresentKHR(presentQueue, &presentInfo);
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-            framebufferResized = false;
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_instance->isResized()) {
+            m_instance->setResized(false);
             handleResize();
         } else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
@@ -1576,7 +1464,7 @@ private:
             return capabilities.currentExtent;
         } else {
             int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
+            glfwGetFramebufferSize(m_instance->getWindow(), &width, &height);
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
@@ -1593,22 +1481,22 @@ private:
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
         SwapChainSupportDetails details;
 
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_instance->getSurface(), &details.capabilities);
 
         uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_instance->getSurface(), &formatCount, nullptr);
 
         if (formatCount != 0) {
             details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_instance->getSurface(), &formatCount, details.formats.data());
         }
 
         uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_instance->getSurface(), &presentModeCount, nullptr);
 
         if (presentModeCount != 0) {
             details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_instance->getSurface(), &presentModeCount, details.presentModes.data());
         }
 
         return details;
@@ -1663,7 +1551,7 @@ private:
             }
 
             VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_instance->getSurface(), &presentSupport);
 
             if (presentSupport) {
                 indices.presentFamily = i;
@@ -1677,45 +1565,6 @@ private:
         }
 
         return indices;
-    }
-
-    std::vector<const char*> getRequiredExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-        if (enableValidationLayers) {
-            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
-        extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-        return extensions;
-    }
-
-    bool checkValidationLayerSupport() {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-        std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-        for (const char* layerName : validationLayers) {
-            bool layerFound = false;
-
-            for (const auto& layerProperties : availableLayers) {
-                if (strcmp(layerName, layerProperties.layerName) == 0) {
-                    layerFound = true;
-                    break;
-                }
-            }
-
-            if (!layerFound) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     static std::vector<char> readFile(const std::string& filename) {
@@ -1736,13 +1585,6 @@ private:
         return buffer;
     }
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-        if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-            std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-        }
-        return VK_FALSE;
-    }
-
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
         VkPhysicalDeviceMemoryProperties memProperties;
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -1758,7 +1600,6 @@ private:
 
     void setImageLayout(VkCommandBuffer command_buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags dstMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)
     {
-        // Create an image barrier object
         VkImageMemoryBarrier barrier{};
         barrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1768,90 +1609,58 @@ private:
         barrier.image               = image;
         barrier.subresourceRange    = subresourceRange;
 
-        // Source layouts (old)
-        // Source access mask controls actions that have to be finished on the old layout
-        // before it will be transitioned to the new layout
         switch (oldLayout)
         {
             case VK_IMAGE_LAYOUT_UNDEFINED:
-                // Image layout is undefined (or does not matter)
-                // Only valid as initial layout
-                // No flags required, listed only for completeness
                 barrier.srcAccessMask = 0;
                 break;
 
             case VK_IMAGE_LAYOUT_PREINITIALIZED:
-                // Image is preinitialized
-                // Only valid as initial layout for linear images, preserves memory contents
-                // Make sure host writes have been finished
                 barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-                // Image is a color attachment
-                // Make sure any writes to the color buffer have been finished
                 barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-                // Image is a depth/stencil attachment
-                // Make sure any writes to the depth/stencil buffer have been finished
                 barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-                // Image is a transfer source
-                // Make sure any reads from the image have been finished
                 barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-                // Image is a transfer destination
-                // Make sure any writes to the image have been finished
                 barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-                // Image is read by a shader
-                // Make sure any shader reads from the image have been finished
                 barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
                 break;
             default:
-                // Other source layouts aren't handled (yet)
                 break;
         }
 
-        // Target layouts (new)
-        // Destination access mask controls the dependency for the new image layout
         switch (newLayout)
         {
             case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-                // Image will be used as a transfer destination
-                // Make sure any writes to the image have been finished
                 barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-                // Image will be used as a transfer source
-                // Make sure any reads from the image have been finished
                 barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-                // Image will be used as a color attachment
-                // Make sure any writes to the color buffer have been finished
                 barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-                // Image layout will be used as a depth/stencil attachment
-                // Make sure any writes to depth/stencil buffer have been finished
                 barrier.dstAccessMask = barrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 break;
 
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-                // Image will be read in a shader (sampler, input attachment)
-                // Make sure any writes to the image have been finished
                 if (barrier.srcAccessMask == 0)
                 {
                     barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1859,11 +1668,8 @@ private:
                 barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                 break;
             default:
-                // Other source layouts aren't handled (yet)
                 break;
         }
-
-        // Put barrier inside setup command buffer
         vkCmdPipelineBarrier(command_buffer, srcMask, dstMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
     }
 
@@ -1878,8 +1684,6 @@ private:
         VkCommandBuffer command_buffer;
         if(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &command_buffer) != VK_SUCCESS)
             throw std::runtime_error("failed to allocate command buffer!");
-
-        // If requested, also start recording for the new command buffer
         if (begin)
         {
             VkCommandBufferBeginInfo command_buffer_info{};
@@ -1911,7 +1715,6 @@ private:
             submit_info.signalSemaphoreCount = 1;
         }
 
-        // Create fence to ensure that the command buffer has finished executing
         VkFenceCreateInfo fence_info{};
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fence_info.flags = VK_FLAGS_NONE;
@@ -1920,9 +1723,7 @@ private:
         if(vkCreateFence(device, &fence_info, nullptr, &fence) != VK_SUCCESS)
             throw std::runtime_error("failed to create Fence while flushing command buffer!");
 
-        // Submit to the queue
         VkResult result = vkQueueSubmit(queue, 1, &submit_info, fence);
-        // Wait for the fence to signal that command buffer has finished executing
         if(vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT) != VK_SUCCESS)
             throw std::runtime_error("failed to wait for the fence to signal that command buffer has finished executing!");
 

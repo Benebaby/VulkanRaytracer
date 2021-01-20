@@ -19,7 +19,12 @@ IF(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
 ENDIF()
 
-add_executable(Test src/main.cpp ${IMGUISOURCES} ${IMGUIHEADERS}  ${STBHEADERS}  ${TINYLOADERHHEADERS})
+file(GLOB SOURCES
+    src/*.h
+    src/*.cpp
+)
+
+add_executable(Test ${SOURCES} ${IMGUISOURCES} ${IMGUIHEADERS}  ${STBHEADERS}  ${TINYLOADERHHEADERS})
 target_include_directories(Test PRIVATE ${IMGUI})
 target_include_directories(Test PRIVATE ${STB})
 target_include_directories(Test PRIVATE ${TINYLOADER})
