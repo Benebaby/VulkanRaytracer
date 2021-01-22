@@ -4,16 +4,13 @@ Instance::Instance(){
 
 }
 
-Instance::Instance(std::string title, uint32_t width, uint32_t height, uint32_t apiVersion, std::vector<const char*> validationLayers){
+Instance::Instance(std::string title, uint32_t width, uint32_t height, uint32_t apiVersion, bool validation){
     m_width = width;
     m_height = height;
     m_resized = false;
     m_title = title;
     m_apiVersion = apiVersion;
-    if(validationLayers.size() > 0)
-        m_validation = true;
-    else
-        m_validation = false;
+    m_validation = validation;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -28,14 +25,16 @@ Instance::Instance(std::string title, uint32_t width, uint32_t height, uint32_t 
     if (m_validation) {
         m_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
+}
 
-     if(m_validation){
+void Instance::create(){
+    if(m_validation){
         uint32_t supportedLayersCount;
         vkEnumerateInstanceLayerProperties(&supportedLayersCount, nullptr);
         std::vector<VkLayerProperties> supportedLayers(supportedLayersCount);
         vkEnumerateInstanceLayerProperties(&supportedLayersCount, supportedLayers.data());
 
-        for(const char* layer : validationLayers){
+        for(const char* layer : m_layers){
             std::string layerCurrent = layer;
             bool layerFound = false;
             for (const VkLayerProperties layerProps : supportedLayers) {
@@ -70,8 +69,8 @@ Instance::Instance(std::string title, uint32_t width, uint32_t height, uint32_t 
     createInfo.enabledExtensionCount = static_cast<uint32_t>(m_extensions.size());
     createInfo.ppEnabledExtensionNames = m_extensions.data();
     if (m_validation) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        createInfo.enabledLayerCount = static_cast<uint32_t>(m_layers.size());
+        createInfo.ppEnabledLayerNames = m_layers.data();
         createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
     } else {
         createInfo.enabledLayerCount = 0;
@@ -93,6 +92,10 @@ void Instance::addExtension(const char* extension){
     m_extensions.push_back(extension);
 }
 
+void Instance::addLayer(const char* layer){
+    m_layers.push_back(layer);
+}
+
 void Instance::createSurface(){
     if (glfwCreateWindowSurface(m_handle, m_window, nullptr, &m_surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
@@ -109,6 +112,10 @@ VkInstance Instance::getHandle(){
 
 VkSurfaceKHR Instance::getSurface(){
     return m_surface;
+}
+
+const std::vector<const char*>& Instance::getLayers() const{
+    return m_layers;
 }
 
 bool Instance::isResized(){

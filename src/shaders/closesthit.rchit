@@ -33,6 +33,7 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
 layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 5, set = 0) uniform sampler2D texSampler;
 
 
 void main()
@@ -66,7 +67,7 @@ void main()
     lightVector = normalize(lightPos.xyz);
   }
 	float dot_product = max(dot(lightVector, normal), 0.1);
-	hitValue = color * dot_product;
+	hitValue = texture(texSampler, textureCoord).xyz * dot_product;
 
   //only triangles faced towards the light are worth a shadow ray
   if(dot_product > 0){
@@ -81,7 +82,7 @@ void main()
     // tracing the ray until the first hit, dont call the hit shader only the miss shader, ignore transparent objects
     traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, position, tmin, lightVector, tmax, 2);
     if (shadowed) {
-      hitValue = color * 0.1;
+      hitValue = texture(texSampler, textureCoord).xyz * 0.1;
     }
   }
 }
