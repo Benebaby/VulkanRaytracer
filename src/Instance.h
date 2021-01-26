@@ -1,7 +1,6 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#include <iostream>
-#include <vector>
+#pragma once
+
+#include "GlobalDefs.h"
 
 class Instance
 {
