@@ -28,66 +28,30 @@ layout(binding = 2, set = 0) uniform UBO {
 
 layout(location = 0) rayPayloadEXT vec3 hitValue;
 
-void main() 
-{	
-	float tmin = 0.001;
-	float tmax = 10000.0;
-
-	// Supersampling
-	// vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.25);
-	// vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	// vec2 d = inUV * 2.0 - 1.0;
-	// vec4 origin = inverse(ubo.inverseView) * vec4(0,0,0,1);
-	// vec4 target = inverse(ubo.inverseProj) * vec4(d.x, d.y, 1, 1) ;
-	// vec4 direction = inverse(ubo.inverseView) *vec4(normalize(target.xyz), 0) ;
-    // hitValue = vec3(0.0);
-	// vec3 tempHitValue = vec3(0.0);
-    // traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	// tempHitValue += hitValue;
-
-	// pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.25, 0.75);
-	// inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	// d = inUV * 2.0 - 1.0;
-	// origin = inverse(ubo.inverseView) * vec4(0,0,0,1);
-	// target = inverse(ubo.inverseProj) * vec4(d.x, d.y, 1, 1);
-	// direction = inverse(ubo.inverseView) *vec4(normalize(target.xyz), 0);
-	// hitValue = vec3(0.0);
-	// traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	// tempHitValue += hitValue;
-
-	// pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.75, 0.25);
-	// inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	// d = inUV * 2.0 - 1.0;
-	// origin = inverse(ubo.inverseView) * vec4(0,0,0,1);
-	// target = inverse(ubo.inverseProj) * vec4(d.x, d.y, 1, 1);
-	// direction = inverse(ubo.inverseView) *vec4(normalize(target.xyz), 0);
-	// hitValue = vec3(0.0);
-	// traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	// tempHitValue += hitValue;
-
-	// pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.75, 0.75);
-	// inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	// d = inUV * 2.0 - 1.0;
-	// origin = inverse(ubo.inverseView) * vec4(0,0,0,1);
-	// target = inverse(ubo.inverseProj) * vec4(d.x, d.y, 1, 1);
-	// direction = inverse(ubo.inverseView) *vec4(normalize(target.xyz), 0);
-	// hitValue = vec3(0.0);
-	// traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	// tempHitValue += hitValue;
-
-	// imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue / 4, 0.0));
-
-	//Single sample per pixel
-	vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+vec3 traceRay(float tmin, float tmax, vec2 offset){
+	vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + offset;
 	vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 	vec2 d = inUV * 2.0 - 1.0;
 	vec4 origin = ubo.inverseView * vec4(0,0,0,1);
 	vec4 target = ubo.inverseProj * vec4(d.x, d.y, 1, 1) ;
 	vec4 direction = ubo.inverseView *vec4(normalize(target.xyz), 0) ;
     hitValue = vec3(0.0);
-	vec3 tempHitValue = vec3(0.0);
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	tempHitValue = hitValue;
+	return hitValue;
+}
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue, 0.0));
+void main() 
+{	
+
+	// Supersampling
+	vec3 tempHitValue = vec3(0.0);
+	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25));
+	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25, 0.75));
+	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25, 0.75));
+	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.75, 0.25));
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue / 4, 0.0));
+
+	//Single sample per pixel
+	// vec3 tempHitValue = traceRay(0.001f, 10000.0f, vec2(0.25));
+	// imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue, 0.0));
 }

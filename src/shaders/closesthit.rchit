@@ -66,7 +66,7 @@ void main()
   }else{
     lightVector = normalize(lightPos.xyz);
   }
-	float dot_product = max(dot(lightVector, normal), 0.1);
+	float dot_product = max(dot(lightVector, normal), 0.2);
 	hitValue = texture(texSampler, textureCoord).xyz * dot_product;
 
   //only triangles faced towards the light are worth a shadow ray
@@ -82,7 +82,7 @@ void main()
     // tracing the ray until the first hit, dont call the hit shader only the miss shader, ignore transparent objects
     traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, position, tmin, lightVector, tmax, 2);
     if (shadowed) {
-      hitValue = texture(texSampler, textureCoord).xyz * 0.1;
+      hitValue = texture(texSampler, textureCoord).xyz * 0.2;
     }
   }
 }

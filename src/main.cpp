@@ -183,7 +183,7 @@ private:
     VkSampler textureSampler;
 
     void initVulkan() {
-        m_instance = new Instance("Vulkan Raytracing RTV", 1600, 900, VK_API_VERSION_1_2, true);
+        m_instance = new Instance("Vulkan Raytracing", 1600, 900, VK_API_VERSION_1_2, true);
         m_instance->addExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
         m_instance->addLayer("VK_LAYER_KHRONOS_validation");
         m_instance->addLayer("VK_LAYER_LUNARG_monitor");

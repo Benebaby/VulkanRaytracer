@@ -53,7 +53,7 @@ void Instance::create(){
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = m_title.c_str();
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "RTV";
+    appInfo.pEngineName = "VKR";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = m_apiVersion;
 

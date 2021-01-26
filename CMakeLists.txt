@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
-project(Test VERSION 1.0.0)
+project(VKR VERSION 1.0.0)
 
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -24,18 +24,18 @@ file(GLOB SOURCES
     src/*.cpp
 )
 
-add_executable(Test ${SOURCES} ${IMGUISOURCES} ${IMGUIHEADERS}  ${STBHEADERS}  ${TINYLOADERHHEADERS})
-target_include_directories(Test PRIVATE ${IMGUI})
-target_include_directories(Test PRIVATE ${STB})
-target_include_directories(Test PRIVATE ${TINYLOADER})
+add_executable(VKR ${SOURCES} ${IMGUISOURCES} ${IMGUIHEADERS}  ${STBHEADERS}  ${TINYLOADERHHEADERS})
+target_include_directories(VKR PRIVATE ${IMGUI})
+target_include_directories(VKR PRIVATE ${STB})
+target_include_directories(VKR PRIVATE ${TINYLOADER})
 
 #add vulkan
 find_package(Vulkan)
 IF (NOT Vulkan_FOUND)
 	message(FATAL_ERROR "Could not find Vulkan library!")
 ENDIF()
-target_link_libraries(Test ${Vulkan_LIBRARIES})
-target_include_directories(Test PUBLIC ${Vulkan_INCLUDE_DIR})
+target_link_libraries(VKR ${Vulkan_LIBRARIES})
+target_include_directories(VKR PUBLIC ${Vulkan_INCLUDE_DIR})
 
 
 #add glfw
@@ -43,8 +43,14 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glfw-3.3.2)
-target_link_libraries(Test glfw)
+target_link_libraries(VKR glfw)
 
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glm-0.9.9.9)
-target_link_libraries(Test glm)
+target_link_libraries(VKR glm)
+
+#add glslang
+
+add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glslang)
+include_directories(${PROJECT_SOURCE_DIR}/lib/glslang)
+target_link_libraries(VKR glslang SPIRV)
