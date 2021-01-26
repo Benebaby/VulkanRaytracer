@@ -32,7 +32,7 @@ target_include_directories(VKR PUBLIC ${Vulkan_INCLUDE_DIR})
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glfw-3.3.2)
+add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glfw)
 target_link_libraries(VKR glfw)
 
 #add glm
