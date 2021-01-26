@@ -41,7 +41,6 @@ target_link_libraries(VKR glm)
 
 #add glslang
 add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glslang)
-include_directories(${PROJECT_SOURCE_DIR}/lib/glslang)
 target_link_libraries(VKR glslang SPIRV)
 
 #add imgui, stb, tinyobjloader

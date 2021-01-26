@@ -1,3 +1,6 @@
 [submodule "lib/glslang"]
 	path = lib/glslang
 	url = https://github.com/KhronosGroup/glslang.git
+[submodule "lib/glm"]
+	path = lib/glm
+	url = https://github.com/g-truc/glm.git
