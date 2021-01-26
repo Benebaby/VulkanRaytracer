@@ -36,7 +36,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glfw-3.3.2)
 target_link_libraries(VKR glfw)
 
 #add glm
-add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glm-0.9.9.9)
+add_subdirectory(${PROJECT_SOURCE_DIR}/lib/glm)
 target_link_libraries(VKR glm)
 
 #add glslang
