@@ -1,7 +1,6 @@
 # VulkanRaytracer
 
 ## Cloning
-git
 git clone ... --recursive
 
 ## Build
