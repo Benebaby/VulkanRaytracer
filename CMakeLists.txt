@@ -20,12 +20,14 @@ file(GLOB SOURCES
 add_executable(VKR ${SOURCES})
 
 #add vulkan
-find_package(Vulkan)
-IF (NOT Vulkan_FOUND)
-	message(FATAL_ERROR "Could not find Vulkan library!")
-ENDIF()
-target_link_libraries(VKR ${Vulkan_LIBRARIES})
-target_include_directories(VKR PUBLIC ${Vulkan_INCLUDE_DIR})
+# find_package(Vulkan)
+# IF (Vulkan_FOUND)
+#     target_link_libraries(VKR ${Vulkan_LIBRARIES})
+#     target_include_directories(VKR PUBLIC ${Vulkan_INCLUDE_DIR})
+# ELSE()
+    add_subdirectory(${PROJECT_SOURCE_DIR}/lib/Vulkan-Headers)
+    target_link_libraries(VKR include)
+# ENDIF()
 
 
 #add glfw
