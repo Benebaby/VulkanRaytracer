@@ -67,3 +67,12 @@ struct Vertex
     float texture[2];
     float pad2[2];
 };
+
+struct Sphere
+{
+    float aabbmin[3];
+    float aabbmax[3];
+    float pad[2];
+    float center[3];
+    float radius;
+};
