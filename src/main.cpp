@@ -117,7 +117,7 @@ private:
 
         getExtensionFunctionPointers();
         createStorageImage();
-        loadModel("/viking_room.obj");
+        loadModel("/dragon.obj");
         createSpheres();
         createBottomLevelAccelerationStructure();
         createBottomLevelAccelerationStructureSpheres();
@@ -467,8 +467,8 @@ private:
     }
 
     void createSpheres(){
-        for(int i = 0; i < 10; i++){
-            for (int j = 0; j < 10; j++)
+        for(int i = 0; i < 100; i++){
+            for (int j = 0; j < 100; j++)
             {
                 Sphere sphere;
                 sphere.center[0] = (float)i; 
@@ -483,8 +483,8 @@ private:
                 sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
                 spheres.push_back(sphere);
             }
-            
         }
+
     }
 
     void createBottomLevelAccelerationStructure(){
@@ -706,9 +706,9 @@ private:
             0.0f, 0.0f, 1.0f, -3.0f
         };
         VkTransformMatrixKHR transformMatrix3 = {
-            1.0f, 0.0f, 0.0f, -4.0f,
+            1.0f, 0.0f, 0.0f, -49.5f,
             0.0f, 1.0f, 0.0f, -1.0f,
-            0.0f, 0.0f, 1.0f, -4.0f
+            0.0f, 0.0f, 1.0f, -49.5f
         };
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
@@ -835,18 +835,17 @@ private:
         UniformBufferObject ubo{};
         glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), (time/5) * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         // sponza 
-        ubo.view = glm::lookAt(glm::vec3(-8.f, 6.f, 4.f), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //ubo.view = glm::lookAt(glm::vec3(-3.f, 1.75f, 0.f), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // viking_room
         // ubo.view = glm::lookAt(glm::vec3(-1.5, 1.1, 1.5), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
-        // ubo.view = glm::lookAt(glm::vec3(0.75, 0.6, 0.75), glm::vec3(0.0f, 0.3f, 0), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.view = glm::lookAt(glm::vec3(0.75, 0.6, 0.75) * camRotation, glm::vec3(0.0f, 0.3f, 0), glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
         ubo.proj[1][1] *= -1;
 
         ubo.view = glm::inverse(ubo.view);
         ubo.proj = glm::inverse(ubo.proj);
-
-        ubo.light = glm::vec4(glm::vec3(5.f, 5.0f, 5.f) * camRotation, 1.0f);
+        ubo.light = glm::vec4(glm::vec3(-5.f, 5.0f, 5.f), 1.0f);
 
         void* data;
         vkMapMemory(m_device->getHandle(), uniformBufferMemory, 0, sizeof(ubo), 0, &data);
@@ -1206,7 +1205,7 @@ private:
         raytracingPipelineCreateInfo.pStages                      = shaderStages.data();
         raytracingPipelineCreateInfo.groupCount                   = static_cast<uint32_t>(shaderGroups.size());
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
-        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
+        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 31;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
 
         if(vkCreateRayTracingPipelinesKHR(m_device->getHandle(), VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &rayTracingPipeline) != VK_SUCCESS)

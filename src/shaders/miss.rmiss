@@ -1,9 +1,16 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-layout(location = 0) rayPayloadInEXT vec3 hitValue;
+struct RayPayload {
+	vec3 color;
+	bool shadow;
+	int recursion;
+    float weight;
+};
+
+layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 void main()
 {
-    hitValue = vec3(0.0, 0.0, 0.0);
+    Payload.color += (Payload.weight) * vec3(0.5, 0.831, 1.0);
 }

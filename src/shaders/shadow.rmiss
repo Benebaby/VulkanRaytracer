@@ -1,9 +1,16 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-layout(location = 2) rayPayloadInEXT bool shadowed;
+struct RayPayload {
+	vec3 color;
+	bool shadow;
+	int recursion;
+	float weight;
+};
+
+layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 void main()
 {
-	shadowed = false;
+	Payload.shadow = false;
 }
