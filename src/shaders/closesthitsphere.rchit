@@ -6,6 +6,7 @@ struct Sphere
   vec4 pad[2];
   vec3 center;
   float radius;
+  int matID;
 };
 struct RayPayload {
 	vec3 color;
@@ -24,17 +25,12 @@ layout(binding = 6, set = 0) buffer Spheres { Sphere s[]; } spheres;
 
 void main()
 {
-  vec3 color;
-  if(gl_PrimitiveID % 3 == 0)
-    color = vec3(1.0, 0.0, 1.0);
-  else if(gl_PrimitiveID % 3 == 1)
-    color = vec3(0.0, 1.0, 1.0);
-  else
-    color = vec3(1.0);
-  
-
   Sphere sphere = spheres.s[gl_PrimitiveID];
   sphere.center = (gl_ObjectToWorldEXT * vec4(sphere.center, 1.0)).xyz;
+  
+  vec3 color = vec3(1.0);
+  if(sphere.matID == 5)
+    color = vec3(1.0, 0.0, 1.0);
 
   vec3 position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   vec3 normal = normalize(position - sphere.center);
@@ -70,9 +66,9 @@ void main()
   }
 
   if (Payload.shadow) {
-    Payload.color += (Payload.weight) * (1.0 - reflectance) * 0.2 * color * cos_phi;
+    Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
   }else{
-    Payload.color += (Payload.weight) * (1.0 - reflectance) * (color * cos_phi + vec3(1.0) * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + vec3(1.0) * cos_psi_n);
   }
 
   if(Payload.recursion < 4 && reflectance > 0.0001){

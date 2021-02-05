@@ -4,6 +4,7 @@
 struct Vertex
 {
   vec3 pos;
+  int matID;
   vec3 normal;
   vec2 texture;
 };
@@ -36,7 +37,14 @@ void main()
        position = (gl_ObjectToWorldEXT * vec4(position, 1.0)).xyz;
   vec3 normal = normalize(vertices.v[i0].normal * barycentricCoords.x + vertices.v[i1].normal * barycentricCoords.y + vertices.v[i2].normal * barycentricCoords.z);
   vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
-  float reflectance = 0.5;
+  float reflectance = 0.0;
+  vec3 color = vec3(1.0);
+  if(vertices.v[i0].matID <= 8)
+    color = vec3(vertices.v[i0].matID/8.0, 0.0, 0.0);
+  else if(vertices.v[i0].matID <= 16)
+    color = vec3(0.0, (vertices.v[i0].matID - 8)/8.0, 0.0);
+  else
+    color = vec3(0.0, 0.0, (vertices.v[i0].matID - 16)/8.0);
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;
@@ -66,9 +74,9 @@ void main()
   }
 
   if (Payload.shadow) {
-    Payload.color += (Payload.weight) * (1.0 - reflectance) * 0.2 * (vec3(0.0f) * cos_phi);
+    Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
   }else{
-    Payload.color += (Payload.weight) * (1.0 - reflectance) * (vec3(0.0f) * cos_phi + vec3(1.0) * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + vec3(1.0) * cos_psi_n);
   }
   
   if(Payload.recursion < 4 && reflectance > 0.0001){

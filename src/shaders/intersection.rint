@@ -5,6 +5,7 @@ struct Sphere
   vec4 pad[2];
   vec3 center;
   float radius;
+  int matID;
 };
 struct Ray
 {

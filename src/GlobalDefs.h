@@ -1,4 +1,5 @@
 #pragma once
+
 #define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
 #define GLM_ENABLE_EXPERIMENTAL
@@ -16,7 +17,6 @@
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
-
     bool isComplete() {
         return graphicsFamily.has_value() && presentFamily.has_value();
     }
@@ -33,14 +33,6 @@ struct ScratchBuffer
 	uint64_t       device_address;
 	VkBuffer       buffer;
 	VkDeviceMemory memory;
-};
-
-struct AccelerationStructure
-{
-	uint64_t                    device_address;
-	VkBuffer                    buffer;
-    VkDeviceMemory              memory;
-	VkAccelerationStructureKHR  accelerationStructure;
 };
 
 struct StorageImage {
@@ -61,18 +53,20 @@ struct UniformBufferObject {
 struct Vertex
 {
     float position[3];
-    float pad;
+    int matID;
     float normal[3];
-    float pad1;
+    float pad0;
     float texture[2];
-    float pad2[2];
+    float pad1[2];
 };
 
 struct Sphere
 {
     float aabbmin[3];
     float aabbmax[3];
-    float pad[2];
+    float pad0[2];
     float center[3];
     float radius;
+    int matID;
+    float pad1[3];
 };
