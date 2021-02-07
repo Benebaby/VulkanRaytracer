@@ -35,15 +35,6 @@ struct ScratchBuffer
 	VkDeviceMemory memory;
 };
 
-struct StorageImage {
-    VkDeviceMemory memory;
-    VkImage        image = VK_NULL_HANDLE;
-    VkImageView    view;
-    VkFormat       format;
-    uint32_t       width;
-    uint32_t       height;
-};
-
 struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
@@ -69,4 +60,30 @@ struct Sphere
     float radius;
     int matID;
     float pad1[3];
+};
+
+struct Material
+{
+  float ambient[3];
+  float pad0;
+  float diffuse[3];
+  float pad1;
+  float specular[3];
+  float pad2;
+  float transmittance[3];
+  float pad3;
+  float emission[3];
+  float shininess;
+  float ior;                        // index of refraction
+  float dissolve;                   // 1 == opaque; 0 == fully transparent
+  int illum;                        // Beleuchtungsmodell
+  int32_t ambientTexId;            // map_Ka
+  int32_t diffuseTexId;            // map_Kd
+  int32_t specularTexId;           // map_Ks
+  int32_t specularHighlightTexId;  // map_Ns
+  int32_t bumpTexId;               // map_bump, map_Bump, bump
+  int32_t displacementTexId;       // disp
+  int32_t alphaTexId;              // map_d
+  int32_t reflectionTexId;         // refl
+  float pad4;
 };

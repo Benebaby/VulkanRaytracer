@@ -13,6 +13,7 @@ private:
     void* m_mapped = (void*) nullptr;
     VkBufferUsageFlags m_usageFlags;
     VkMemoryPropertyFlags m_memoryPropertyFlags;
+    VkDeviceAddress m_deviceAddress = VK_NULL_HANDLE;
     uint32_t findMemoryType(uint32_t typeFilter);
 public:
     Buffer();
@@ -23,6 +24,7 @@ public:
     void copyTo(void* data, VkDeviceSize size);
     void destroy();
     VkBuffer getHandle();
+    VkDeviceAddress getDeviceAddress();
     VkDescriptorBufferInfo getDescriptorInfo(VkDeviceSize size, VkDeviceSize offset);
 };
 

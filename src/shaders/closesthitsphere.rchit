@@ -1,5 +1,6 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 struct Sphere
 {
@@ -8,6 +9,28 @@ struct Sphere
   float radius;
   int matID;
 };
+
+struct Material {
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+  vec3 transmittance;
+  vec3 emission;
+  float shininess;
+  float ior;                   // index of refraction
+  float dissolve;              // 1 == opaque; 0 == fully transparent
+  int illum;                   // Beleuchtungsmodell
+
+  int ambientTexId;            // map_Ka
+  int diffuseTexId;            // map_Kd
+  int specularTexId;           // map_Ks
+  int specularHighlightTexId;  // map_Ns
+  int bumpTexId;               // map_bump, map_Bump, bump
+  int displacementTexId;       // disp
+  int alphaTexId;              // map_d
+  int reflectionTexId;         // refl
+};
+
 struct RayPayload {
 	vec3 color;
 	bool shadow;
@@ -20,22 +43,24 @@ hitAttributeEXT vec3 attribs;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
+layout(binding = 5, set = 0) uniform sampler2D texSampler[];
 layout(binding = 6, set = 0) buffer Spheres { Sphere s[]; } spheres;
+layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
 
 
 void main()
 {
   Sphere sphere = spheres.s[gl_PrimitiveID];
   sphere.center = (gl_ObjectToWorldEXT * vec4(sphere.center, 1.0)).xyz;
-  
-  vec3 color = vec3(1.0);
-  if(sphere.matID == 5)
-    color = vec3(1.0, 0.0, 1.0);
 
   vec3 position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   vec3 normal = normalize(position - sphere.center);
-  vec2 textureCoord = vec2(0.0);
-  float reflectance = 0.5;
+  vec2 textureCoord = vec2((1 + atan(normal.z, normal.x) / 3.14159f) * 0.5, acos(normal.y) / 3.14159f);
+  Material material = materials.m[sphere.matID];
+  //vec3 color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
+  vec3 color = vec3(0.0);
+
+  float reflectance = 0.8;
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;

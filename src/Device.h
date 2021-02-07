@@ -11,6 +11,7 @@ private:
     VkPhysicalDevice m_physical_device;
     VkQueue m_graphics_queue;
     VkQueue m_present_queue;
+    VkCommandPool m_commandPool = VK_NULL_HANDLE;
     std::vector<const char*> m_extensions;
 
     VkPhysicalDeviceProperties2 m_deviceProperties2{};
@@ -43,6 +44,8 @@ public:
     uint32_t getShaderGroupHandleAlignment();
     SwapChainSupportDetails querySwapChainSupport();
     QueueFamilyIndices findQueueFamilies();
+    void createCommandPool();
+    VkCommandPool getCommandPool();
     void destroy();
     ~Device();
 };

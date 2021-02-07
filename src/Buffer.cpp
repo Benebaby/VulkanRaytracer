@@ -39,6 +39,18 @@ Buffer::Buffer(Device* device, VkDeviceSize size, VkBufferUsageFlags usageFlags,
     if (vkAllocateMemory(m_device->getHandle(), &allocInfo, nullptr, &m_memory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate buffer memory!");
     }
+    bind(0);
+    if (m_usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkGetBufferDeviceAddressKHR"));
+        VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfo{};
+        bufferDeviceAddressInfo.sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        bufferDeviceAddressInfo.buffer = m_handle;
+        m_deviceAddress = vkGetBufferDeviceAddressKHR(m_device->getHandle(), &bufferDeviceAddressInfo);
+    }
+}
+
+VkDeviceAddress Buffer::getDeviceAddress(){
+    return m_deviceAddress;
 }
 
 void Buffer::bind(VkDeviceSize offset){

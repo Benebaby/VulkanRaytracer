@@ -1,5 +1,6 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 struct Vertex
 {
@@ -7,6 +8,27 @@ struct Vertex
   int matID;
   vec3 normal;
   vec2 texture;
+};
+
+struct Material {
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+  vec3 transmittance;
+  vec3 emission;
+  float shininess;
+  float ior;                   // index of refraction
+  float dissolve;              // 1 == opaque; 0 == fully transparent
+  int illum;                   // Beleuchtungsmodell
+
+  int ambientTexId;            // map_Ka
+  int diffuseTexId;            // map_Kd
+  int specularTexId;           // map_Ks
+  int specularHighlightTexId;  // map_Ns
+  int bumpTexId;               // map_bump, map_Bump, bump
+  int displacementTexId;       // disp
+  int alphaTexId;              // map_d
+  int reflectionTexId;         // refl
 };
 
 struct RayPayload {
@@ -23,7 +45,8 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
 layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 5, set = 0) uniform sampler2D texSampler;
+layout(binding = 5, set = 0) uniform sampler2D texSampler[];
+layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
 
 
 void main()
@@ -37,14 +60,9 @@ void main()
        position = (gl_ObjectToWorldEXT * vec4(position, 1.0)).xyz;
   vec3 normal = normalize(vertices.v[i0].normal * barycentricCoords.x + vertices.v[i1].normal * barycentricCoords.y + vertices.v[i2].normal * barycentricCoords.z);
   vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
+  Material material = materials.m[vertices.v[i0].matID];
   float reflectance = 0.0;
-  vec3 color = vec3(1.0);
-  if(vertices.v[i0].matID <= 8)
-    color = vec3(vertices.v[i0].matID/8.0, 0.0, 0.0);
-  else if(vertices.v[i0].matID <= 16)
-    color = vec3(0.0, (vertices.v[i0].matID - 8)/8.0, 0.0);
-  else
-    color = vec3(0.0, 0.0, (vertices.v[i0].matID - 16)/8.0);
+  vec3 color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;
@@ -56,7 +74,7 @@ void main()
   }
   vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
 	float cos_phi = max(dot(lightVector, normal), 0.2);
-  float cos_psi_n = pow(max(dot(lightVector, reflectedDir), 0.0f), 100.0);
+  float cos_psi_n = pow(max(dot(lightVector, reflectedDir), 0.0f), material.shininess);
   Payload.shadow = false;
 
   //only triangles faced towards the light are worth a shadow ray
@@ -76,7 +94,7 @@ void main()
   if (Payload.shadow) {
     Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
   }else{
-    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + vec3(1.0) * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + material.specular * cos_psi_n);
   }
   
   if(Payload.recursion < 4 && reflectance > 0.0001){

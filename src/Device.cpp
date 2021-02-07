@@ -282,8 +282,24 @@ SwapChainSupportDetails Device::querySwapChainSupport() {
     return querySwapChainSupport(m_physical_device);
 }
 
+void Device::createCommandPool(){
+    QueueFamilyIndices queueFamilyIndices = findQueueFamilies();
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+    if (vkCreateCommandPool(m_handle, &poolInfo, nullptr, &m_commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create command pool!");
+    }
+}
+
+VkCommandPool Device::getCommandPool(){
+    return m_commandPool;
+}
+
 Device::~Device(){}
 
 void Device::destroy(){
+    vkDestroyCommandPool(m_handle, m_commandPool, nullptr);
     vkDestroyDevice(m_handle, nullptr);
 }

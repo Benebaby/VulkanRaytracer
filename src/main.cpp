@@ -1,7 +1,5 @@
 #include <fstream>
 #include <chrono>
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 #include <vulkan/vulkan.hpp>
@@ -10,6 +8,7 @@
 #include "Instance.h"
 #include "Device.h"
 #include "Buffer.h"
+#include "Texture.h"
 
 struct AccelerationStructure
 {
@@ -30,7 +29,6 @@ private:
     Instance* m_instance;
     Device* m_device;
 
-    PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
     PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
     PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
     PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
@@ -56,15 +54,15 @@ private:
     VkDescriptorPool descriptorPool;
     VkDescriptorSet descriptorSet;
 
-    VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
 
-    StorageImage storageImage;
+    Texture* storageImage;
     AccelerationStructure bottomLevelAccelerationStructure;
     AccelerationStructure bottomLevelAccelerationStructureSpheres;
 	AccelerationStructure topLevelAccelerationStructure;
 
     Buffer* sphereBuffer;
+    Buffer* materialBuffer;
     Buffer* vertexBuffer;
     Buffer* indexBuffer;
     Buffer* transformBuffer;
@@ -80,11 +78,8 @@ private:
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
     std::vector<Sphere> spheres;
-
-    VkImage textureImage;
-    VkDeviceMemory textureImageMemory;
-    VkImageView textureImageView;
-    VkSampler textureSampler;
+    std::vector<Material> materials;
+    std::vector<Texture> textures;
 
     void initVulkan() {
         m_instance = new Instance("Vulkan Raytracing", 1600, 900, VK_API_VERSION_1_2, true);
@@ -104,16 +99,12 @@ private:
         m_device->addExtension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
         m_device->pickPhysicalDevice();
         m_device->createLogicalDevice();
+        m_device->createCommandPool();
 
         createSwapChain();
         createImageViews();
         createRenderPass();
         createFramebuffers();
-        createCommandPool();
-
-        createTextureImage();
-        createTextureImageView();
-        createTextureSampler();
 
         getExtensionFunctionPointers();
         createStorageImage();
@@ -149,7 +140,7 @@ private:
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(m_device->getHandle(), framebuffer, nullptr);
         }
-        vkFreeCommandBuffers(m_device->getHandle(), commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        vkFreeCommandBuffers(m_device->getHandle(), m_device->getCommandPool(), static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
         vkDestroyRenderPass(m_device->getHandle(), renderPass, nullptr);
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(m_device->getHandle(), imageView, nullptr);
@@ -159,9 +150,7 @@ private:
         uniformBuffer->destroy();
         delete uniformBuffer;
 
-        vkDestroyImageView(m_device->getHandle(), storageImage.view, nullptr);
-        vkDestroyImage(m_device->getHandle(), storageImage.image, nullptr);
-        vkFreeMemory(m_device->getHandle(), storageImage.memory, nullptr);
+        storageImage->destroy();
         vkDestroyDescriptorPool(m_device->getHandle(), descriptorPool, nullptr);
 
         createSwapChain();
@@ -179,12 +168,11 @@ private:
             vkDestroyFramebuffer(m_device->getHandle(), framebuffer, nullptr);
         }
 
-        vkDestroySampler(m_device->getHandle(), textureSampler, nullptr);
-        vkDestroyImageView(m_device->getHandle(), textureImageView, nullptr);
-        vkDestroyImage(m_device->getHandle(), textureImage, nullptr);
-        vkFreeMemory(m_device->getHandle(), textureImageMemory, nullptr);
+        for(Texture texture : textures){
+            texture.destroy();
+        }
 
-        vkFreeCommandBuffers(m_device->getHandle(), commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        vkFreeCommandBuffers(m_device->getHandle(), m_device->getCommandPool(), static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
         
         vkDestroyPipeline(m_device->getHandle(), rayTracingPipeline, nullptr);
         vkDestroyPipelineLayout(m_device->getHandle(), pipelineLayout, nullptr);
@@ -200,9 +188,7 @@ private:
         delete uniformBuffer;
 
 
-        vkDestroyImageView(m_device->getHandle(), storageImage.view, nullptr);
-        vkDestroyImage(m_device->getHandle(), storageImage.image, nullptr);
-        vkFreeMemory(m_device->getHandle(), storageImage.memory, nullptr);
+        storageImage->destroy();
         
         vkDestroyDescriptorPool(m_device->getHandle(), descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_device->getHandle(), descriptorSetLayout, nullptr);
@@ -227,6 +213,9 @@ private:
         sphereBuffer->destroy();
         delete sphereBuffer;
 
+        materialBuffer->destroy();
+        delete materialBuffer;
+
         transformBuffer->destroy();
         delete transformBuffer;
 
@@ -240,8 +229,7 @@ private:
         vkDestroySemaphore(m_device->getHandle(), renderFinishedSemaphore, nullptr);
         vkDestroySemaphore(m_device->getHandle(), imageAvailableSemaphore, nullptr);
 
-        vkDestroyCommandPool(m_device->getHandle(), commandPool, nullptr);
-        m_device->destroy();
+        m_device->destroy(); //destroys device and its command pool
         delete m_device;
         m_instance->destroy();
         delete m_instance;
@@ -326,7 +314,6 @@ private:
     }
 
     void getExtensionFunctionPointers(){
-        vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkGetBufferDeviceAddressKHR"));
         vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkCmdBuildAccelerationStructuresKHR"));
 		vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkBuildAccelerationStructuresKHR"));
 		vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkCreateAccelerationStructureKHR"));
@@ -338,94 +325,21 @@ private:
 		vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkCreateRayTracingPipelinesKHR"));
     }
 
-    ScratchBuffer createScratchBuffer(VkDeviceSize size){
-        ScratchBuffer scratchBuffer{};
-        VkBufferCreateInfo buffer_create_info = {};
-        buffer_create_info.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buffer_create_info.size               = size;
-        buffer_create_info.usage              = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-        if(vkCreateBuffer(m_device->getHandle(), &buffer_create_info, nullptr, &scratchBuffer.buffer) != VK_SUCCESS)
-            throw std::runtime_error("failed to create scratch buffer!");
-
-        VkMemoryRequirements memoryRequirements = {};
-        vkGetBufferMemoryRequirements(m_device->getHandle(), scratchBuffer.buffer, &memoryRequirements);
-
-        VkMemoryAllocateFlagsInfo memory_allocate_flags_info = {};
-        memory_allocate_flags_info.sType                     = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
-        memory_allocate_flags_info.flags                     = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
-
-        VkMemoryAllocateInfo memoryAllocateInfo = {};
-        memoryAllocateInfo.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.pNext                = &memory_allocate_flags_info;
-        memoryAllocateInfo.allocationSize       = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex      = findMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if(vkAllocateMemory(m_device->getHandle(), &memoryAllocateInfo, nullptr, &scratchBuffer.memory) != VK_SUCCESS)
-            throw std::runtime_error("failed to allocate scratch buffer memory!");
-        if(vkBindBufferMemory(m_device->getHandle(), scratchBuffer.buffer, scratchBuffer.memory, 0) != VK_SUCCESS)
-            throw std::runtime_error("failed to bind scratch buffer memory!");
-
-        VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfo{};
-        bufferDeviceAddressInfo.sType   = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        bufferDeviceAddressInfo.buffer  = scratchBuffer.buffer;
-        scratchBuffer.device_address   = vkGetBufferDeviceAddressKHR(m_device->getHandle(), &bufferDeviceAddressInfo);
-
+    Buffer createScratchBuffer(VkDeviceSize size){
+        Buffer scratchBuffer = Buffer(m_device, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         return scratchBuffer;
     }
 
     void createStorageImage(){
-        storageImage.width = swapChainExtent.width;
-	    storageImage.height = swapChainExtent.height;
-        
-        VkImageCreateInfo imageCreateInfo{};
-	    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageCreateInfo.imageType         = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format            = VK_FORMAT_B8G8R8A8_UNORM;
-        imageCreateInfo.extent.width      = storageImage.width;
-        imageCreateInfo.extent.height     = storageImage.height;
-        imageCreateInfo.extent.depth      = 1;
-        imageCreateInfo.mipLevels         = 1;
-        imageCreateInfo.arrayLayers       = 1;
-        imageCreateInfo.samples           = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling            = VK_IMAGE_TILING_OPTIMAL;
-        imageCreateInfo.usage             = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-        imageCreateInfo.initialLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
-        if(vkCreateImage(m_device->getHandle(), &imageCreateInfo, nullptr, &storageImage.image) != VK_SUCCESS){
-            throw std::runtime_error("failed to create Storage Image!");
-        }
-
-        VkMemoryRequirements memoryRequirements;
-        vkGetImageMemoryRequirements(m_device->getHandle(), storageImage.image, &memoryRequirements);
-        VkMemoryAllocateInfo memoryAllocateInfo{};
-	    memoryAllocateInfo.sType            = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.allocationSize   = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (vkAllocateMemory(m_device->getHandle(), &memoryAllocateInfo, nullptr, &storageImage.memory) != VK_SUCCESS)
-            throw std::runtime_error("failed to allocate storage image memory!");
-        if (vkBindImageMemory(m_device->getHandle(), storageImage.image, storageImage.memory, 0) != VK_SUCCESS)
-            throw std::runtime_error("failed to bind storage image memory!");
-
-        VkImageViewCreateInfo colorImageViewCreateInfo{};
-	    colorImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        colorImageViewCreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        colorImageViewCreateInfo.format                          = VK_FORMAT_B8G8R8A8_UNORM;
-        colorImageViewCreateInfo.subresourceRange                = {};
-        colorImageViewCreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        colorImageViewCreateInfo.subresourceRange.baseMipLevel   = 0;
-        colorImageViewCreateInfo.subresourceRange.levelCount     = 1;
-        colorImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        colorImageViewCreateInfo.subresourceRange.layerCount     = 1;
-        colorImageViewCreateInfo.image                           = storageImage.image;
-        if (vkCreateImageView(m_device->getHandle(), &colorImageViewCreateInfo, nullptr, &storageImage.view) != VK_SUCCESS)
-            throw std::runtime_error("failed to create storage image view!");
-        VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-        setImageLayout(command_buffer, storageImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-        flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
+        storageImage = new Texture(m_device, swapChainExtent.width, swapChainExtent.height, VK_FORMAT_B8G8R8A8_UNORM);
     }
 
     void loadModel(std::string Modelpath) {
         tinyobj::ObjReaderConfig reader_config;
         reader_config.mtl_search_path = "";
         reader_config.triangulate = true;
+
+        uint32_t materialOffset = static_cast<uint32_t>(materials.size());
 
         tinyobj::ObjReader reader;
 
@@ -442,9 +356,78 @@ private:
 
         auto& attrib = reader.GetAttrib();
         auto& shapes = reader.GetShapes();
-        auto& materials = reader.GetMaterials();
+        auto& objMaterials = reader.GetMaterials();
 
-        std::cout << "Found Materials: " << materials.size() << std::endl;
+        std::cout << "Found Materials: " << objMaterials.size() << std::endl;
+        for(tinyobj::material_t objMaterial : objMaterials){
+            Material material{};
+            material.ambient[0] = objMaterial.ambient[0];               material.ambient[1] = objMaterial.ambient[1];               material.ambient[2] = objMaterial.ambient[2];
+            material.diffuse[0] = objMaterial.diffuse[0];               material.diffuse[1] = objMaterial.diffuse[1];               material.diffuse[2] = objMaterial.diffuse[2];
+            material.specular[0] = objMaterial.specular[0];             material.specular[1] = objMaterial.specular[1];             material.specular[2] = objMaterial.specular[2];
+            material.transmittance[0] = objMaterial.transmittance[0];   material.transmittance[1] = objMaterial.transmittance[1];   material.transmittance[2] = objMaterial.transmittance[2];
+            material.emission[0] = objMaterial.emission[0];             material.emission[1] = objMaterial.emission[1];             material.emission[2] = objMaterial.emission[2];
+            material.shininess = objMaterial.shininess;
+            material.ior = objMaterial.ior;                     // index of refraction
+            material.dissolve = objMaterial.dissolve;                // 1 == opaque; 0 == fully transparent
+            material.illum = objMaterial.illum;                   // Beleuchtungsmodell
+            if(objMaterial.ambient_texname.length() != 0 ){
+                std::string base_filename = objMaterial.ambient_texname.substr(objMaterial.ambient_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.ambientTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ka
+            }else{
+                material.ambientTexId = -1;
+            }
+            if(objMaterial.diffuse_texname.length() != 0 ){
+                std::string base_filename = objMaterial.diffuse_texname.substr(objMaterial.diffuse_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.diffuseTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Kd
+            }else{
+                material.diffuseTexId = -1;
+            }
+            if(objMaterial.specular_texname.length() != 0 ){
+                std::string base_filename = objMaterial.specular_texname.substr(objMaterial.specular_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.specularTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ks
+            }else{
+                material.specularTexId = -1;
+            }
+            if(objMaterial.specular_highlight_texname.length() != 0 ){
+                std::string base_filename = objMaterial.specular_highlight_texname.substr(objMaterial.specular_highlight_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.specularHighlightTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ns
+            }else{
+                material.specularHighlightTexId = -1;
+            }
+            if(objMaterial.bump_texname.length() != 0 ){
+                std::string base_filename = objMaterial.bump_texname.substr(objMaterial.bump_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.bumpTexId = static_cast<uint32_t>(textures.size() - 1);            // map_bump, map_Bump, bump
+            }else{
+                material.bumpTexId = -1;
+            }
+            if(objMaterial.displacement_texname.length() != 0 ){
+                std::string base_filename = objMaterial.displacement_texname.substr(objMaterial.displacement_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.displacementTexId = static_cast<uint32_t>(textures.size() - 1);            // disp
+            }else{
+                material.displacementTexId = -1;
+            }
+            if(objMaterial.alpha_texname.length() != 0 ){
+                std::string base_filename = objMaterial.alpha_texname.substr(objMaterial.alpha_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.alphaTexId = static_cast<uint32_t>(textures.size() - 1);            // map_d
+            }else{
+                material.alphaTexId = -1;
+            }
+            if(objMaterial.reflection_texname.length() != 0 ){
+                std::string base_filename = objMaterial.reflection_texname.substr(objMaterial.reflection_texname.find_last_of("/\\") + 1);
+                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+                material.reflectionTexId = static_cast<uint32_t>(textures.size() - 1);            // refl
+            }else{
+                material.reflectionTexId = -1;
+            }
+            materials.push_back(material);
+        }
 
         uint32_t current_index = 0; 
         bool hasNormals = attrib.normals.size() > 0;
@@ -461,7 +444,7 @@ private:
                 for (size_t v = 0; v < fv; v++) {
                     tinyobj::index_t index = shapes[s].mesh.indices[index_offset + v];
                     Vertex vertex{};
-                    vertex.matID = matID;
+                    vertex.matID = materialOffset + matID;
                     vertex.position[0] = attrib.vertices[3 * index.vertex_index + 0];
                     vertex.position[1] = attrib.vertices[3 * index.vertex_index + 1];
                     vertex.position[2] = attrib.vertices[3 * index.vertex_index + 2];
@@ -495,14 +478,14 @@ private:
     }
 
     void createSpheres(){
-        for(int i = 0; i < 100; i++){
-            for (int j = 0; j < 100; j++)
-            {
+        // for(int i = 0; i < 100; i++){
+        //     for (int j = 0; j < 100; j++)
+        //     {
                 Sphere sphere;
                 sphere.matID = 5;
-                sphere.center[0] = (float)i; 
+                sphere.center[0] = 0.f; 
                 sphere.center[1] = 0.f; 
-                sphere.center[2] = (float)j;
+                sphere.center[2] = 0.f;
                 sphere.radius = 0.5f;
                 sphere.aabbmin[0] = sphere.center[0] - sphere.radius; 
                 sphere.aabbmin[1] = sphere.center[1] - sphere.radius; 
@@ -511,8 +494,8 @@ private:
                 sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
                 sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
                 spheres.push_back(sphere);
-            }
-        }
+        //     }
+        // }
     }
 
     void createBottomLevelAccelerationStructure(){
@@ -525,6 +508,7 @@ private:
         };
 
         auto vertexBufferSize = vertices.size() * sizeof(Vertex);
+        auto materialBufferSize = materials.size() * sizeof(Material);
 	    auto indexBufferSize  = indices.size() * sizeof(uint32_t);
         auto transformBufferSize = sizeof(transformMatrix);
 
@@ -532,19 +516,21 @@ private:
         const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
         vertexBuffer = new Buffer(m_device, vertexBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        vertexBuffer->bind(0);
         vertexBuffer->map(vertexBufferSize, 0);
         vertexBuffer->copyTo(vertices.data(), vertexBufferSize);
         vertexBuffer->unmap();
 
+        materialBuffer = new Buffer(m_device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
+        materialBuffer->map(materialBufferSize, 0);
+        materialBuffer->copyTo(materials.data(), materialBufferSize);
+        materialBuffer->unmap();
+
         indexBuffer = new Buffer(m_device, indexBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        indexBuffer->bind(0);
         indexBuffer->map(indexBufferSize, 0);
         indexBuffer->copyTo(indices.data(), indexBufferSize);
         indexBuffer->unmap();
 
         transformBuffer = new Buffer(m_device, transformBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        transformBuffer->bind(0);
         transformBuffer->map(transformBufferSize, 0);
         transformBuffer->copyTo(&transformMatrix, transformBufferSize);
         transformBuffer->unmap();
@@ -553,9 +539,9 @@ private:
         VkDeviceOrHostAddressConstKHR indexDataDeviceAddress{};
         VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
 
-        vertexDataDeviceAddress.deviceAddress      = getBufferDeviceAddress(vertexBuffer->getHandle());
-        indexDataDeviceAddress.deviceAddress       = getBufferDeviceAddress(indexBuffer->getHandle());
-        transformMatrixDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer->getHandle());
+        vertexDataDeviceAddress.deviceAddress      = vertexBuffer->getDeviceAddress();
+        indexDataDeviceAddress.deviceAddress       = indexBuffer->getDeviceAddress();
+        transformMatrixDeviceAddress.deviceAddress = transformBuffer->getDeviceAddress();
 
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
         accelerationStructureGeometry.sType                            = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -585,7 +571,6 @@ private:
         vkGetAccelerationStructureBuildSizesKHR(m_device->getHandle(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numTriangles, &accelerationStructureBuildSizesInfo);
 
         bottomLevelAccelerationStructure.buffer = Buffer(m_device, accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR);
-        bottomLevelAccelerationStructure.buffer.bind(0);
 
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
         accelerationStructureCreateInfo.sType  = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
@@ -595,7 +580,7 @@ private:
 
         vkCreateAccelerationStructureKHR(m_device->getHandle(), &accelerationStructureCreateInfo, nullptr, &bottomLevelAccelerationStructure.accelerationStructure);
 
-        ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+        Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
 
         VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
         accelerationBuildGeometryInfo.sType                     = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -605,7 +590,7 @@ private:
         accelerationBuildGeometryInfo.dstAccelerationStructure  = bottomLevelAccelerationStructure.accelerationStructure;
         accelerationBuildGeometryInfo.geometryCount             = 1;
         accelerationBuildGeometryInfo.pGeometries               = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.device_address;
+        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getDeviceAddress();
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
         accelerationStructureBuildRangeInfo.primitiveCount                                           = numTriangles;
@@ -621,8 +606,7 @@ private:
             VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
             vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
             flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-            vkFreeMemory(m_device->getHandle(), scratchBuffer.memory, nullptr);
-            vkDestroyBuffer(m_device->getHandle(), scratchBuffer.buffer, nullptr);
+            scratchBuffer.destroy();
         }
 
         VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -639,7 +623,6 @@ private:
         const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
         sphereBuffer = new Buffer(m_device, sphereBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        sphereBuffer->bind(0);
         sphereBuffer->map(sphereBufferSize, 0);
         sphereBuffer->copyTo(spheres.data(), sphereBufferSize);
         sphereBuffer->unmap();
@@ -647,8 +630,8 @@ private:
         VkDeviceOrHostAddressConstKHR sphereDataDeviceAddress{};
         VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
 
-        sphereDataDeviceAddress.deviceAddress      = getBufferDeviceAddress(sphereBuffer->getHandle());
-        transformMatrixDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer->getHandle());
+        sphereDataDeviceAddress.deviceAddress      = sphereBuffer->getDeviceAddress();
+        transformMatrixDeviceAddress.deviceAddress = transformBuffer->getDeviceAddress();
 
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
         accelerationStructureGeometry.sType                            = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -673,8 +656,6 @@ private:
         vkGetAccelerationStructureBuildSizesKHR(m_device->getHandle(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numSpheres, &accelerationStructureBuildSizesInfo);
 
         bottomLevelAccelerationStructureSpheres.buffer = Buffer(m_device, accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR);
-        bottomLevelAccelerationStructureSpheres.buffer.bind(0);
-
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
         accelerationStructureCreateInfo.sType  = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
         accelerationStructureCreateInfo.buffer = bottomLevelAccelerationStructureSpheres.buffer.getHandle();
@@ -683,7 +664,7 @@ private:
 
         vkCreateAccelerationStructureKHR(m_device->getHandle(), &accelerationStructureCreateInfo, nullptr, &bottomLevelAccelerationStructureSpheres.accelerationStructure);
 
-        ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+        Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
 
         VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
         accelerationBuildGeometryInfo.sType                     = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -693,7 +674,7 @@ private:
         accelerationBuildGeometryInfo.dstAccelerationStructure  = bottomLevelAccelerationStructureSpheres.accelerationStructure;
         accelerationBuildGeometryInfo.geometryCount             = 1;
         accelerationBuildGeometryInfo.pGeometries               = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.device_address;
+        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getDeviceAddress();
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
         accelerationStructureBuildRangeInfo.primitiveCount                                           = numSpheres;
@@ -709,8 +690,7 @@ private:
             VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
             vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
             flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-            vkFreeMemory(m_device->getHandle(), scratchBuffer.memory, nullptr);
-            vkDestroyBuffer(m_device->getHandle(), scratchBuffer.buffer, nullptr);
+            scratchBuffer.destroy();
         }
 
         VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -735,11 +715,11 @@ private:
         //     0.0f, 1.0f, 0.0f, 0.0f,
         //     0.0f, 0.0f, 1.0f, -3.0f
         // };
-        // VkTransformMatrixKHR transformMatrix3 = {
-        //     1.0f, 0.0f, 0.0f, -49.5f,
-        //     0.0f, 1.0f, 0.0f, -1.0f,
-        //     0.0f, 0.0f, 1.0f, -49.5f
-        // };
+        VkTransformMatrixKHR transformMatrix3 = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 1.5f,
+            0.0f, 0.0f, 1.0f, 0.0f
+        };
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
         accelerationStructureInstance0.transform                              = transformMatrix0;
@@ -765,26 +745,24 @@ private:
         // accelerationStructureInstance2.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         // accelerationStructureInstance2.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
 
-        // VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
-        // accelerationStructureInstance3.transform                              = transformMatrix3;
-        // accelerationStructureInstance3.instanceCustomIndex                    = 3;
-        // accelerationStructureInstance3.mask                                   = 0xFF;
-        // accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
-        // accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        // accelerationStructureInstance3.accelerationStructureReference         = bottomLevelAccelerationStructureSpheres.device_address;
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
+        accelerationStructureInstance3.transform                              = transformMatrix3;
+        accelerationStructureInstance3.instanceCustomIndex                    = 3;
+        accelerationStructureInstance3.mask                                   = 0xFF;
+        accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
+        accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance3.accelerationStructureReference         = bottomLevelAccelerationStructureSpheres.device_address;
 
 
-        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0/*accelerationStructureInstance1, accelerationStructureInstance2, accelerationStructureInstance3*/};
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0/*accelerationStructureInstance1, accelerationStructureInstance2*/, accelerationStructureInstance3};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
-        Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        instancesBuffer.bind(0);
-        instancesBuffer.map(geometryInstancesSize, 0);
+        Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        instancesBuffer.map(geometryInstancesSize, 0);
         instancesBuffer.copyTo(geometryInstances.data(), geometryInstancesSize);
         instancesBuffer.unmap();
 
         VkDeviceOrHostAddressConstKHR instancesDataDeviceAddress{};
-	    instancesDataDeviceAddress.deviceAddress = getBufferDeviceAddress(instancesBuffer.getHandle());
+	    instancesDataDeviceAddress.deviceAddress = instancesBuffer.getDeviceAddress();
 
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
         accelerationStructureGeometry.sType                              = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -808,8 +786,6 @@ private:
         vkGetAccelerationStructureBuildSizesKHR(m_device->getHandle(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitiveCount, &accelerationStructureBuildSizesInfo);
 
         topLevelAccelerationStructure.buffer = Buffer(m_device, accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR);
-        topLevelAccelerationStructure.buffer.bind(0);
-
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
         accelerationStructureCreateInfo.sType  = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
         accelerationStructureCreateInfo.buffer = topLevelAccelerationStructure.buffer.getHandle();
@@ -817,7 +793,7 @@ private:
         accelerationStructureCreateInfo.type   = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
         vkCreateAccelerationStructureKHR(m_device->getHandle(), &accelerationStructureCreateInfo, nullptr, &topLevelAccelerationStructure.accelerationStructure);
 
-        ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+        Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
 
         VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
         accelerationBuildGeometryInfo.sType                     = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -827,7 +803,7 @@ private:
         accelerationBuildGeometryInfo.dstAccelerationStructure  = topLevelAccelerationStructure.accelerationStructure;
         accelerationBuildGeometryInfo.geometryCount             = 1;
         accelerationBuildGeometryInfo.pGeometries               = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.device_address;
+        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getDeviceAddress();
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
         accelerationStructureBuildRangeInfo.primitiveCount                                           = (uint32_t) geometryInstances.size();
@@ -843,8 +819,7 @@ private:
             VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
             vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
             flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-            vkFreeMemory(m_device->getHandle(), scratchBuffer.memory, nullptr);
-            vkDestroyBuffer(m_device->getHandle(), scratchBuffer.buffer, nullptr);
+            scratchBuffer.destroy();
         }
 
         VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -882,7 +857,6 @@ private:
 
     void createUniformBuffer(){
         uniformBuffer = new Buffer(m_device, sizeof(UniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        uniformBuffer->bind(0);
         updateUniformBuffer();
     }
 
@@ -891,8 +865,8 @@ private:
             {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1}
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(textures.size())}
         };
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -924,9 +898,7 @@ private:
         accelerationStructureWrite.descriptorType  = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         accelerationStructureWrite.pNext = &descriptor_acceleration_structure_info;
 
-        VkDescriptorImageInfo storageImageDescriptor{};
-		storageImageDescriptor.imageView = storageImage.view;
-		storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        VkDescriptorImageInfo storageImageDescriptor = storageImage->getDescriptorInfo();
 
         VkWriteDescriptorSet resultImageWrite{};
         resultImageWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -968,11 +940,12 @@ private:
         indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         indexBufferWrite.descriptorCount = 1;
         indexBufferWrite.pBufferInfo = &indexBufferDescriptor;
-
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = textureImageView;
-        imageInfo.sampler = textureSampler;
+        
+        std::vector<VkDescriptorImageInfo>	descriptorImageInfos(textures.size());
+        for (size_t i = 0; i < textures.size(); i++)
+        {
+            descriptorImageInfos[i] = textures[i].getDescriptorInfo();
+        }
 
         VkWriteDescriptorSet textureImageWrite{};
         textureImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -980,8 +953,8 @@ private:
         textureImageWrite.dstBinding = 5;
         textureImageWrite.dstArrayElement = 0;
         textureImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        textureImageWrite.descriptorCount = 1;
-        textureImageWrite.pImageInfo = &imageInfo;
+        textureImageWrite.descriptorCount = static_cast<uint32_t>(textures.size());
+        textureImageWrite.pImageInfo = descriptorImageInfos.data();
 
         VkDescriptorBufferInfo sphereBufferDescriptor = sphereBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0);
 
@@ -994,6 +967,17 @@ private:
         sphereBufferWrite.descriptorCount = 1;
         sphereBufferWrite.pBufferInfo = &sphereBufferDescriptor;
 
+        VkDescriptorBufferInfo materialBufferDescriptor = materialBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0);
+
+        VkWriteDescriptorSet materialBufferWrite{};
+        materialBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        materialBufferWrite.dstSet = descriptorSet;
+        materialBufferWrite.dstBinding = 7;
+        materialBufferWrite.dstArrayElement = 0;
+        materialBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        materialBufferWrite.descriptorCount = 1;
+        materialBufferWrite.pBufferInfo = &materialBufferDescriptor;
+
         std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
             accelerationStructureWrite,
 	        resultImageWrite,
@@ -1001,7 +985,8 @@ private:
             vertexBufferWrite,
             indexBufferWrite,
             textureImageWrite,
-            sphereBufferWrite
+            sphereBufferWrite,
+            materialBufferWrite
         };
 
         vkUpdateDescriptorSets(m_device->getHandle(), static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1082,7 +1067,7 @@ private:
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
         samplerLayoutBinding.binding = 5;
         samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorCount = static_cast<uint32_t>(textures.size());
         samplerLayoutBinding.pImmutableSamplers = nullptr;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
@@ -1092,6 +1077,12 @@ private:
         sphere_buffer_binding.descriptorCount = 1;
         sphere_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
 
+        VkDescriptorSetLayoutBinding material_buffer_binding{};
+        material_buffer_binding.binding         = 7;
+        material_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        material_buffer_binding.descriptorCount = 1;
+        material_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             acceleration_structure_layout_binding,
             result_image_layout_binding,
@@ -1099,7 +1090,8 @@ private:
             vertex_buffer_binding,
             index_buffer_binding,
             samplerLayoutBinding,
-            sphere_buffer_binding
+            sphere_buffer_binding,
+            material_buffer_binding
         };
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -1246,19 +1238,16 @@ private:
 		const VkMemoryPropertyFlags memoryUsageFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
         raygenShaderBindingTable = new Buffer(m_device, handleSize, bufferUsageFlags, memoryUsageFlags);
-        raygenShaderBindingTable->bind(0);
         raygenShaderBindingTable->map(handleSize, 0);
         raygenShaderBindingTable->copyTo(shaderHandleStorage.data(), handleSize);
         raygenShaderBindingTable->unmap();
 
         missShaderBindingTable = new Buffer(m_device, handleSize * 2, bufferUsageFlags, memoryUsageFlags);
-        missShaderBindingTable->bind(0);
         missShaderBindingTable->map(handleSize * 2, 0);
         missShaderBindingTable->copyTo(shaderHandleStorage.data() + handleSizeAligned, handleSize * 2);
         missShaderBindingTable->unmap();
 
         hitShaderBindingTable = new Buffer(m_device, handleSize * 2, bufferUsageFlags, memoryUsageFlags);
-        hitShaderBindingTable->bind(0);
         hitShaderBindingTable->map(handleSize * 2, 0);
         hitShaderBindingTable->copyTo(shaderHandleStorage.data() + handleSizeAligned * 3, handleSize * 2);
         hitShaderBindingTable->unmap();
@@ -1287,24 +1276,12 @@ private:
         }
     }
 
-    void createCommandPool() {
-        QueueFamilyIndices queueFamilyIndices = m_device->findQueueFamilies();
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-        if (vkCreateCommandPool(m_device->getHandle(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create command pool!");
-        }
-    }
-
     void createCommandBuffers() {
         commandBuffers.resize(swapChainFramebuffers.size());
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
+        allocInfo.commandPool = m_device->getCommandPool();
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
@@ -1330,17 +1307,17 @@ private:
             const uint32_t handle_size_aligned = alignedSize(m_device->getShaderGroupHandleSize(), m_device-> getShaderGroupHandleAlignment());
 
             VkStridedDeviceAddressRegionKHR raygen_shader_sbt_entry{};
-            raygen_shader_sbt_entry.deviceAddress = getBufferDeviceAddress(raygenShaderBindingTable->getHandle());
+            raygen_shader_sbt_entry.deviceAddress = raygenShaderBindingTable->getDeviceAddress();
             raygen_shader_sbt_entry.stride        = handle_size_aligned;
             raygen_shader_sbt_entry.size          = handle_size_aligned;
 
             VkStridedDeviceAddressRegionKHR miss_shader_sbt_entry{};
-            miss_shader_sbt_entry.deviceAddress = getBufferDeviceAddress(missShaderBindingTable->getHandle());
+            miss_shader_sbt_entry.deviceAddress = missShaderBindingTable->getDeviceAddress();
             miss_shader_sbt_entry.stride        = handle_size_aligned;
             miss_shader_sbt_entry.size          = handle_size_aligned * 2;
 
             VkStridedDeviceAddressRegionKHR hit_shader_sbt_entry{};
-            hit_shader_sbt_entry.deviceAddress = getBufferDeviceAddress(hitShaderBindingTable->getHandle());
+            hit_shader_sbt_entry.deviceAddress = hitShaderBindingTable->getDeviceAddress();
             hit_shader_sbt_entry.stride        = handle_size_aligned;
             hit_shader_sbt_entry.size          = handle_size_aligned * 2;
 
@@ -1362,7 +1339,7 @@ private:
             setImageLayout(commandBuffers[i], swapChainImages[i], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresource_range);
 
             // Prepare ray tracing output image as transfer source
-            setImageLayout( commandBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresource_range);
+            setImageLayout( commandBuffers[i], storageImage->getImage(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresource_range);
 
             VkImageCopy copy_region{};
             copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
@@ -1370,13 +1347,13 @@ private:
             copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
             copy_region.dstOffset      = {0, 0, 0};
             copy_region.extent         = {swapChainExtent.width, swapChainExtent.height, 1};
-            vkCmdCopyImage(commandBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+            vkCmdCopyImage(commandBuffers[i], storageImage->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
             // Transition swap chain image back for presentation
             setImageLayout(commandBuffers[i], swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresource_range);
 
             // Transition ray tracing output image back to general layout
-            setImageLayout(commandBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresource_range);
+            setImageLayout(commandBuffers[i], storageImage->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresource_range);
 
             if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to record command buffer!");
@@ -1604,7 +1581,7 @@ private:
     {
         VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
         cmdBufAllocateInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        cmdBufAllocateInfo.commandPool        = commandPool;
+        cmdBufAllocateInfo.commandPool        = m_device->getCommandPool();
         cmdBufAllocateInfo.level              = level;
         cmdBufAllocateInfo.commandBufferCount = 1;
 
@@ -1656,49 +1633,7 @@ private:
 
         vkDestroyFence(m_device->getHandle(), fence, nullptr);
 
-        vkFreeCommandBuffers(m_device->getHandle(), commandPool, 1, &command_buffer);
-    }
-
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = size;
-        bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateBuffer(m_device->getHandle(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create buffer!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(m_device->getHandle(), buffer, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
-        if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-            allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
-            allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
-            allocInfo.pNext = &allocFlagsInfo;
-        }
-
-        if (vkAllocateMemory(m_device->getHandle(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate buffer memory!");
-        }
-
-        if (vkBindBufferMemory(m_device->getHandle(), buffer, bufferMemory, 0) != VK_SUCCESS)
-            throw std::runtime_error("failed to bind buffer memory!");
-    }
-
-    uint64_t getBufferDeviceAddress(VkBuffer buffer)
-    {
-        VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfo{};
-        bufferDeviceAddressInfo.sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        bufferDeviceAddressInfo.buffer = buffer;
-        return vkGetBufferDeviceAddressKHR(m_device->getHandle(), &bufferDeviceAddressInfo);
+        vkFreeCommandBuffers(m_device->getHandle(), m_device->getCommandPool(), 1, &command_buffer);
     }
 
     inline uint32_t alignedSize(uint32_t value, uint32_t alignment)
@@ -1706,121 +1641,6 @@ private:
         return (value + alignment - 1) & ~(alignment - 1);
     }
 
-    void createTextureImage() {
-        const char* filepath = TEXTURE_PATH"/viking_room/viking_room.png";
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(filepath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-
-        if (!pixels) {
-            throw std::runtime_error("failed to load texture image!");
-        }
-
-        Buffer stagingBuffer = Buffer(m_device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        stagingBuffer.bind(0);
-        stagingBuffer.map(imageSize, 0);
-        stagingBuffer.copyTo(pixels, static_cast<size_t>(imageSize));
-        stagingBuffer.unmap();
-
-        stbi_image_free(pixels);
-        createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
-        VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-
-            setImageLayout(command_buffer, textureImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-            VkBufferImageCopy region{};
-            region.bufferOffset = 0;
-            region.bufferRowLength = 0;
-            region.bufferImageHeight = 0;
-            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            region.imageSubresource.mipLevel = 0;
-            region.imageSubresource.baseArrayLayer = 0;
-            region.imageSubresource.layerCount = 1;
-            region.imageOffset = {0, 0, 0};
-            region.imageExtent = {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1};
-            vkCmdCopyBufferToImage(command_buffer, stagingBuffer.getHandle(), textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-            setImageLayout(command_buffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-        flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-
-        stagingBuffer.destroy();
-    }
-
-    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = width;
-        imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateImage(m_device->getHandle(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(m_device->getHandle(), image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(m_device->getHandle(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(m_device->getHandle(), image, imageMemory, 0);
-    }
-
-    void createTextureImageView() {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = textureImage;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(m_device->getHandle(), &viewInfo, nullptr, &textureImageView) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture image view!");
-        }
-    }
-
-    void createTextureSampler() {
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
-
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-        if (vkCreateSampler(m_device->getHandle(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
-    }
 }; 
 
 int main() {
