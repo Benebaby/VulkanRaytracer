@@ -55,12 +55,17 @@ void main()
 
   vec3 position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   vec3 normal = normalize(position - sphere.center);
-  vec2 textureCoord = vec2((1 + atan(normal.z, normal.x) / 3.14159f) * 0.5, acos(normal.y) / 3.14159f);
+  vec3 rotatedNormal = mat3(gl_ObjectToWorldEXT) * normal;
+  vec2 textureCoord = vec2((1 + atan(rotatedNormal.z, rotatedNormal.x) / 3.14159f) * 0.5, acos(rotatedNormal.y) / 3.14159f);
   Material material = materials.m[sphere.matID];
-  //vec3 color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
-  vec3 color = vec3(0.0);
+  
+  vec3 color = vec3(1.0);
+  if(material.diffuseTexId >= 0)
+    color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
+  else
+    color = material.diffuse;
 
-  float reflectance = 0.5;
+  float reflectance = 0.2;
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;
@@ -72,7 +77,7 @@ void main()
   }
   vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
 	float cos_phi = max(dot(lightVector, normal), 0.2);
-  float cos_psi_n = pow(max(dot(lightVector, reflectedDir), 0.0f), 100.0);
+  float cos_psi_n = pow(max(dot(lightVector, reflectedDir), 0.0f), material.shininess);
   Payload.shadow = false;
 
   //only triangles faced towards the light are worth a shadow ray
@@ -93,7 +98,7 @@ void main()
   if (Payload.shadow) {
     Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
   }else{
-    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + vec3(1.0) * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + material.specular * cos_psi_n);
   }
 
   if(Payload.recursion < 4 && reflectance > 0.0001){

@@ -9,6 +9,7 @@
 #include "Device.h"
 #include "Buffer.h"
 #include "Texture.h"
+#include "Camera.h"
 
 struct AccelerationStructure
 {
@@ -81,6 +82,8 @@ private:
     std::vector<Material> materials;
     std::vector<Texture> textures;
 
+    Camera cam;
+
     void initVulkan() {
         m_instance = new Instance("Vulkan Raytracing", 1600, 900, VK_API_VERSION_1_2, true);
         m_instance->addExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
@@ -105,6 +108,8 @@ private:
         createImageViews();
         createRenderPass();
         createFramebuffers();
+        
+        cam = Camera(m_instance->getWindow(), swapChainExtent.width, swapChainExtent.height, glm::vec3(-7.5f, 2.f, 0.f));
 
         getExtensionFunctionPointers();
         createStorageImage();
@@ -478,24 +483,42 @@ private:
     }
 
     void createSpheres(){
-        // for(int i = 0; i < 10; i++){
-        //     for (int j = 0; j < 10; j++)
-        //     {
-                Sphere sphere;
-                sphere.matID = 5;
-                sphere.center[0] = 0.f; 
-                sphere.center[1] = 0.f; 
-                sphere.center[2] = 0.f;
-                sphere.radius = 0.5f;
-                sphere.aabbmin[0] = sphere.center[0] - sphere.radius; 
-                sphere.aabbmin[1] = sphere.center[1] - sphere.radius; 
-                sphere.aabbmin[2] = sphere.center[2] - sphere.radius;
-                sphere.aabbmax[0] = sphere.center[0] + sphere.radius; 
-                sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
-                sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
-                spheres.push_back(sphere);
-        //     }
-        // }
+        uint32_t materialOffset = static_cast<uint32_t>(materials.size());
+
+        Material material{};
+        material.ambient[0] = 1.0f;         material.ambient[1] = 1.0f;         material.ambient[2] = 1.0f;
+        material.diffuse[0] = 1.0f;         material.diffuse[1] = 0.0f;         material.diffuse[2] = 1.0f;
+        material.specular[0] = 1.0f;        material.specular[1] = 1.0f;        material.specular[2] = 1.0f;
+        material.transmittance[0] = 0.0f;   material.transmittance[1] = 0.0f;   material.transmittance[2] = 0.0f;
+        material.emission[0] = 0.0f;        material.emission[1] = 0.0f;        material.emission[2] = 0.0f;
+        material.shininess = 100.0f; 
+        material.ior = 1.0f;                  // index of refraction
+        material.dissolve = 1.0f;             // 1 == opaque; 0 == fully transparent
+        material.illum = 2;                   // Beleuchtungsmodell
+        material.ambientTexId = -1;
+        textures.push_back(Texture(m_device, "/checker.png", VK_FORMAT_R8G8B8A8_SRGB));
+        material.diffuseTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Kd
+        material.specularTexId = -1;
+        material.specularHighlightTexId = -1;
+        material.bumpTexId = -1;
+        material.displacementTexId = -1;
+        material.alphaTexId = -1;
+        material.reflectionTexId = -1;
+        materials.push_back(material);
+
+        Sphere sphere;
+        sphere.matID = materialOffset + 0;
+        sphere.center[0] = 0.f; 
+        sphere.center[1] = 0.f; 
+        sphere.center[2] = 0.f;
+        sphere.radius = 0.5f;
+        sphere.aabbmin[0] = sphere.center[0] - sphere.radius; 
+        sphere.aabbmin[1] = sphere.center[1] - sphere.radius; 
+        sphere.aabbmin[2] = sphere.center[2] - sphere.radius;
+        sphere.aabbmax[0] = sphere.center[0] + sphere.radius; 
+        sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
+        sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
+        spheres.push_back(sphere);
     }
 
     void createBottomLevelAccelerationStructure(){
@@ -702,7 +725,7 @@ private:
     void createTopLevelAccelerationStructure(){
         VkTransformMatrixKHR transformMatrix0 = {
             1.1f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.1f, 0.0f, 0.0f,
+            0.0f, 1.1f, 0.0f, -1.55f,
             0.0f, 0.0f, 1.1f, 0.0f
         };
         // VkTransformMatrixKHR transformMatrix1 = {
@@ -716,8 +739,8 @@ private:
         //     0.0f, 0.0f, 1.0f, -3.0f
         // };
         VkTransformMatrixKHR transformMatrix3 = {
-            1.0f, 0.0f, 0.0f, -2.f,
-            0.0f, 1.0f, 0.0f, 1.6f,
+            0.0f, -1.0f, 0.0f, 0.f,
+            1.0f, 0.0f, 0.0f, 0.f,
             0.0f, 0.0f, 1.0f, 0.f
         };
 
@@ -838,7 +861,7 @@ private:
         UniformBufferObject ubo{};
         glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), (time/5) * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         // sponza 
-        ubo.view = glm::lookAt(glm::vec3(-7.5f, 2.f, 0.f), glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //ubo.view = glm::lookAt(glm::vec3(-7.5f, 2.f, 0.f), glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // viking_room
         // ubo.view = glm::lookAt(glm::vec3(-1.5, 1.1, 1.5), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
@@ -846,7 +869,8 @@ private:
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
         ubo.proj[1][1] *= -1;
 
-        ubo.view = glm::inverse(ubo.view);
+        cam.update();
+        ubo.view = cam.getView();
         ubo.proj = glm::inverse(ubo.proj);
         ubo.light = glm::vec4(glm::vec3(-1.f, 5.0f, 1.f) * camRotation, 1.0f);
 

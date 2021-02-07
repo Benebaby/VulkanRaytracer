@@ -62,12 +62,11 @@ void main()
   vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
   Material material = materials.m[vertices.v[i0].matID];
   float reflectance = 0.0;
-  vec4 Texcolor = texture(texSampler[material.diffuseTexId], textureCoord);
   vec3 color = vec3(1.0);
-  if(Texcolor.w > 0.0001)
-    color = Texcolor.xyz;
+  if(material.diffuseTexId >= 0)
+    color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
   else
-    color = vec3(1.0, 0.0, 1.0);
+    color = material.diffuse;
 
   Payload.recursion++; 
   
