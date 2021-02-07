@@ -21,10 +21,13 @@ private:
     VkPhysicalDeviceFeatures2 m_deviceFeatures2{};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR m_rayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR m_accelerationStructureFeatures{};
+    VkPhysicalDeviceDescriptorIndexingFeatures m_descriptorIndexingFeatures{};
 
     VkPhysicalDeviceBufferDeviceAddressFeatures m_enabledBufferDeviceAddressFeatures{};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR m_enabledRayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR m_enabledAccelerationStructureFeatures{};
+    VkPhysicalDeviceDescriptorIndexingFeatures m_enabledDescriptorIndexingFeatures{};
+
     bool isDeviceSuitable(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);

@@ -478,8 +478,8 @@ private:
     }
 
     void createSpheres(){
-        // for(int i = 0; i < 100; i++){
-        //     for (int j = 0; j < 100; j++)
+        // for(int i = 0; i < 10; i++){
+        //     for (int j = 0; j < 10; j++)
         //     {
                 Sphere sphere;
                 sphere.matID = 5;
@@ -716,9 +716,9 @@ private:
         //     0.0f, 0.0f, 1.0f, -3.0f
         // };
         VkTransformMatrixKHR transformMatrix3 = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 1.5f,
-            0.0f, 0.0f, 1.0f, 0.0f
+            1.0f, 0.0f, 0.0f, -2.f,
+            0.0f, 1.0f, 0.0f, 1.6f,
+            0.0f, 0.0f, 1.0f, 0.f
         };
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
@@ -1188,6 +1188,15 @@ private:
         rchitSphereShaderStageInfo.module = rchitSphereShaderModule;
         rchitSphereShaderStageInfo.pName = "main";
         shaderStages.push_back(rchitSphereShaderStageInfo);
+
+         VkRayTracingShaderGroupCreateInfoKHR rchitSphereGroupCreateInfo{};
+		rchitSphereGroupCreateInfo.sType              = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+		rchitSphereGroupCreateInfo.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+		rchitSphereGroupCreateInfo.generalShader      = VK_SHADER_UNUSED_KHR;
+		rchitSphereGroupCreateInfo.closestHitShader   = static_cast<uint32_t>(shaderStages.size()) - 1;
+		rchitSphereGroupCreateInfo.anyHitShader       = VK_SHADER_UNUSED_KHR;
+		rchitSphereGroupCreateInfo.intersectionShader = static_cast<uint32_t>(shaderStages.size());
+		shaderGroups.push_back(rchitSphereGroupCreateInfo);
 
         VkPipelineShaderStageCreateInfo rintShaderStageInfo{};
         rintShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

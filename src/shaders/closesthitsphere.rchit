@@ -60,7 +60,7 @@ void main()
   //vec3 color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
   vec3 color = vec3(0.0);
 
-  float reflectance = 0.8;
+  float reflectance = 0.5;
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;
@@ -86,7 +86,7 @@ void main()
     }
     Payload.shadow = true;  
     // tracing the ray until the first hit, dont call the hit shader only the miss shader, ignore transparent objects
-    traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, position, tmin, lightVector, tmax, 0);
+    traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, position, tmin, lightVector, tmax, 0);
     
   }
 

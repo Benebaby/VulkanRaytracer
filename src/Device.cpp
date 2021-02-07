@@ -25,8 +25,10 @@ void Device::pickPhysicalDevice(){
     m_rayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     m_rayTracingPipelineFeatures.pNext = &m_accelerationStructureFeatures;
     m_accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    m_accelerationStructureFeatures.pNext = &m_descriptorIndexingFeatures;
+    m_descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+
     uint32_t deviceCount = 0;
-    
 
     vkEnumeratePhysicalDevices(m_instance->getHandle(), &deviceCount, nullptr);
     if (deviceCount == 0) {
@@ -81,6 +83,10 @@ void Device::createLogicalDevice() {
 
     m_enabledBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     m_enabledBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+    m_enabledBufferDeviceAddressFeatures.pNext = &m_enabledDescriptorIndexingFeatures;
+
+    m_enabledDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    m_enabledDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
