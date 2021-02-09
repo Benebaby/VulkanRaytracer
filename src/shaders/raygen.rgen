@@ -30,7 +30,7 @@ vec3 traceRay(float tmin, float tmax, vec2 offset){
 	Payload.color = vec3(0.0);
 	Payload.weight = 1.0;
 
-    traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+    traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 	return Payload.color;
 }
 

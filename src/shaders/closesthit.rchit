@@ -68,6 +68,12 @@ void main()
   else
     color = material.diffuse;
 
+  vec3 specular = vec3(1.0);
+  if(material.specularTexId >= 0)
+    specular = texture(texSampler[material.specularTexId], textureCoord).xyz * material.specular;
+  else  
+    specular = material.specular;
+
   Payload.recursion++; 
   
   vec4 lightPos = ubo.light;
@@ -93,17 +99,17 @@ void main()
     }
     Payload.shadow = true;  
     // tracing the ray until the first hit, dont call the hit shader only the miss shader, ignore transparent objects
-    traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, position, tmin, lightVector, tmax, 0);
+    traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, position, tmin, lightVector, tmax, 0);
   }
 
   if (Payload.shadow) {
     Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
   }else{
-    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + material.specular * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + specular * cos_psi_n);
   }
   
   if(Payload.recursion < 4 && reflectance > 0.0001){
     Payload.weight *= reflectance;
-    traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, position, 0.001, reflectedDir, 10000.0, 0);
+    traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.001, reflectedDir, 10000.0, 0);
   }
 }

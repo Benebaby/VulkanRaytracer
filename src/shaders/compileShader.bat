@@ -4,4 +4,5 @@ glsLangValidator.exe -V shadow.rmiss -o shadow.spv --target-env vulkan1.2
 glsLangValidator.exe -V closesthit.rchit -o closesthit.spv --target-env vulkan1.2
 glsLangValidator.exe -V intersection.rint -o intersection.spv --target-env vulkan1.2
 glsLangValidator.exe -V closesthitsphere.rchit -o closesthitsphere.spv --target-env vulkan1.2
+glsLangValidator.exe -V anyhit.rahit -o anyhit.spv --target-env vulkan1.2
 pause

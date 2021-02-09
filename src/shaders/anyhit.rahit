@@ -1,0 +1,55 @@
+#version 460
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+struct Vertex
+{
+  vec3 pos;
+  int matID;
+  vec3 normal;
+  vec2 texture;
+};
+
+struct Material {
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+  vec3 transmittance;
+  vec3 emission;
+  float shininess;
+  float ior;                   // index of refraction
+  float dissolve;              // 1 == opaque; 0 == fully transparent
+  int illum;                   // Beleuchtungsmodell
+
+  int ambientTexId;            // map_Ka
+  int diffuseTexId;            // map_Kd
+  int specularTexId;           // map_Ks
+  int specularHighlightTexId;  // map_Ns
+  int bumpTexId;               // map_bump, map_Bump, bump
+  int displacementTexId;       // disp
+  int alphaTexId;              // map_d
+  int reflectionTexId;         // refl
+};
+
+hitAttributeEXT vec3 attribs;
+
+layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 5, set = 0) uniform sampler2D texSampler[];
+layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
+
+
+void main()
+{
+    uint i0 = indices.i[3 * gl_PrimitiveID];
+    Material material = materials.m[vertices.v[i0].matID];
+    if(material.alphaTexId != -1){
+        uint i1 = indices.i[3 * gl_PrimitiveID + 1];
+        uint i2 = indices.i[3 * gl_PrimitiveID + 2];
+        const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+        vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
+        if(texture(texSampler[material.alphaTexId], textureCoord).x <= 0.000001){
+            ignoreIntersectionEXT;
+        }
+    }
+}

@@ -25,10 +25,17 @@ float hitSphere(const Sphere s, const Ray r)
   if(discriminant < 0)
   {
     return -1.0;
-  }
-  else
-  {
-    return (-b - sqrt(discriminant)) / (2.0 * a);
+  }else{
+    float numerator = -b - sqrt(discriminant);
+    if(numerator > 0.0) {
+      return numerator / (2.0 * a);
+    }
+    numerator = -b + sqrt(discriminant);
+    if(numerator > 0.0) {
+      return numerator / (2.0 * a);
+    }else {
+      return -1;
+    }
   }
 }
 

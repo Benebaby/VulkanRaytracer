@@ -569,7 +569,7 @@ private:
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
         accelerationStructureGeometry.sType                            = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
         accelerationStructureGeometry.geometryType                     = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-        accelerationStructureGeometry.flags                            = VK_GEOMETRY_OPAQUE_BIT_KHR;
+        accelerationStructureGeometry.flags                            = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
         accelerationStructureGeometry.geometry.triangles.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
         accelerationStructureGeometry.geometry.triangles.vertexFormat  = VK_FORMAT_R32G32B32_SFLOAT;
         accelerationStructureGeometry.geometry.triangles.vertexData    = vertexDataDeviceAddress;
@@ -728,16 +728,16 @@ private:
             0.0f, 1.1f, 0.0f, -1.55f,
             0.0f, 0.0f, 1.1f, 0.0f
         };
-        // VkTransformMatrixKHR transformMatrix1 = {
-        //     1.0f, 0.0f, 0.0f, 0.0f,
-        //     0.0f, 1.0f, 0.0f, 0.0f,
-        //     0.0f, 0.0f, 1.0f, 3.0f
-        // };
-        // VkTransformMatrixKHR transformMatrix2 = {
-        //     1.0f, 0.0f, 0.0f, 0.0f,
-        //     0.0f, 1.0f, 0.0f, 0.0f,
-        //     0.0f, 0.0f, 1.0f, -3.0f
-        // };
+        VkTransformMatrixKHR transformMatrix1 = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 20.0f
+        };
+        VkTransformMatrixKHR transformMatrix2 = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, -20.0f
+        };
         VkTransformMatrixKHR transformMatrix3 = {
             0.0f, -1.0f, 0.0f, 0.f,
             1.0f, 0.0f, 0.0f, 0.f,
@@ -752,21 +752,21 @@ private:
         accelerationStructureInstance0.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         accelerationStructureInstance0.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
 
-        // VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
-        // accelerationStructureInstance1.transform                              = transformMatrix1;
-        // accelerationStructureInstance1.instanceCustomIndex                    = 1;
-        // accelerationStructureInstance1.mask                                   = 0xFF;
-        // accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
-        // accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        // accelerationStructureInstance1.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
+        accelerationStructureInstance1.transform                              = transformMatrix1;
+        accelerationStructureInstance1.instanceCustomIndex                    = 1;
+        accelerationStructureInstance1.mask                                   = 0xFF;
+        accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance1.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
 
-        // VkAccelerationStructureInstanceKHR accelerationStructureInstance2{};
-        // accelerationStructureInstance2.transform                              = transformMatrix2;
-        // accelerationStructureInstance2.instanceCustomIndex                    = 2;
-        // accelerationStructureInstance2.mask                                   = 0xFF;
-        // accelerationStructureInstance2.instanceShaderBindingTableRecordOffset = 0;
-        // accelerationStructureInstance2.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        // accelerationStructureInstance2.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance2{};
+        accelerationStructureInstance2.transform                              = transformMatrix2;
+        accelerationStructureInstance2.instanceCustomIndex                    = 2;
+        accelerationStructureInstance2.mask                                   = 0xFF;
+        accelerationStructureInstance2.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance2.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance2.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
         accelerationStructureInstance3.transform                              = transformMatrix3;
@@ -777,7 +777,7 @@ private:
         accelerationStructureInstance3.accelerationStructureReference         = bottomLevelAccelerationStructureSpheres.device_address;
 
 
-        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0/*accelerationStructureInstance1, accelerationStructureInstance2*/, accelerationStructureInstance3};
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance2, accelerationStructureInstance3};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
         Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        instancesBuffer.map(geometryInstancesSize, 0);
@@ -1080,32 +1080,32 @@ private:
         vertex_buffer_binding.binding         = 3;
         vertex_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         vertex_buffer_binding.descriptorCount = 1;
-        vertex_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        vertex_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding index_buffer_binding{};
         index_buffer_binding.binding         = 4;
         index_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         index_buffer_binding.descriptorCount = 1;
-        index_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        index_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
         samplerLayoutBinding.binding = 5;
         samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerLayoutBinding.descriptorCount = static_cast<uint32_t>(textures.size());
         samplerLayoutBinding.pImmutableSamplers = nullptr;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding sphere_buffer_binding{};
         sphere_buffer_binding.binding         = 6;
         sphere_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         sphere_buffer_binding.descriptorCount = 1;
-        sphere_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+        sphere_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding material_buffer_binding{};
         material_buffer_binding.binding         = 7;
         material_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         material_buffer_binding.descriptorCount = 1;
-        material_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+        material_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             acceleration_structure_layout_binding,
@@ -1141,12 +1141,14 @@ private:
         auto rchitShaderCode = readFile("/closesthit.spv");
         auto rchitSphereShaderCode = readFile("/closesthitsphere.spv");
         auto rintShaderCode = readFile("/intersection.spv");
+        auto rahitShaderCode = readFile("/anyhit.spv");
         VkShaderModule raygenShaderModule = createShaderModule(raygenShaderCode);
         VkShaderModule missShaderModule = createShaderModule(missShaderCode);
         VkShaderModule missShadowShaderModule = createShaderModule(missShadowShaderCode);
         VkShaderModule rchitShaderModule = createShaderModule(rchitShaderCode);
         VkShaderModule rchitSphereShaderModule = createShaderModule(rchitSphereShaderCode);
         VkShaderModule rintShaderModule = createShaderModule(rintShaderCode);
+        VkShaderModule rahitShaderModule = createShaderModule(rahitShaderCode);
 
         VkPipelineShaderStageCreateInfo raygenShaderStageInfo{};
         raygenShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1202,9 +1204,16 @@ private:
 		closesHitGroupCreateInfo.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 		closesHitGroupCreateInfo.generalShader      = VK_SHADER_UNUSED_KHR;
 		closesHitGroupCreateInfo.closestHitShader   = static_cast<uint32_t>(shaderStages.size()) - 1;
-		closesHitGroupCreateInfo.anyHitShader       = VK_SHADER_UNUSED_KHR;
+		closesHitGroupCreateInfo.anyHitShader       = static_cast<uint32_t>(shaderStages.size());
 		closesHitGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 		shaderGroups.push_back(closesHitGroupCreateInfo);
+
+        VkPipelineShaderStageCreateInfo rahitShaderStageInfo{};
+        rahitShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        rahitShaderStageInfo.stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+        rahitShaderStageInfo.module = rahitShaderModule;
+        rahitShaderStageInfo.pName = "main";
+        shaderStages.push_back(rahitShaderStageInfo);
 
         VkPipelineShaderStageCreateInfo rchitSphereShaderStageInfo{};
         rchitSphereShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1229,15 +1238,6 @@ private:
         rintShaderStageInfo.pName = "main";
         shaderStages.push_back(rintShaderStageInfo);
 
-        VkRayTracingShaderGroupCreateInfoKHR intersectionGroupCreateInfo{};
-		intersectionGroupCreateInfo.sType              = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-		intersectionGroupCreateInfo.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
-		intersectionGroupCreateInfo.generalShader      = VK_SHADER_UNUSED_KHR;
-		intersectionGroupCreateInfo.closestHitShader   = static_cast<uint32_t>(shaderStages.size()) - 2;
-		intersectionGroupCreateInfo.anyHitShader       = VK_SHADER_UNUSED_KHR;
-		intersectionGroupCreateInfo.intersectionShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-		shaderGroups.push_back(intersectionGroupCreateInfo);
-
         VkRayTracingPipelineCreateInfoKHR raytracingPipelineCreateInfo{};
         raytracingPipelineCreateInfo.sType                        = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
         raytracingPipelineCreateInfo.stageCount                   = static_cast<uint32_t>(shaderStages.size());
@@ -1255,6 +1255,7 @@ private:
         vkDestroyShaderModule(m_device->getHandle(), rchitShaderModule, nullptr);
         vkDestroyShaderModule(m_device->getHandle(), rchitSphereShaderModule, nullptr);
         vkDestroyShaderModule(m_device->getHandle(), rintShaderModule, nullptr);
+        vkDestroyShaderModule(m_device->getHandle(), rahitShaderModule, nullptr);
     }
 
     void createShaderBindingTables(){
