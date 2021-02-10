@@ -109,7 +109,7 @@ private:
         createRenderPass();
         createFramebuffers();
         
-        cam = Camera(m_instance->getWindow(), swapChainExtent.width, swapChainExtent.height, glm::vec3(-7.5f, 2.f, 0.f));
+        cam = Camera(Camera::TypeFirstPerson ,m_instance->getWindow(), swapChainExtent.width, swapChainExtent.height, glm::vec3(-7.5f, 1.f, 0.f), glm::vec3(0.0f));
 
         getExtensionFunctionPointers();
         createStorageImage();

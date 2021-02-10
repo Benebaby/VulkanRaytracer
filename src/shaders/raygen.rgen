@@ -38,14 +38,14 @@ void main()
 {	
 
 	// Supersampling
-	vec3 tempHitValue = vec3(0.0);
-	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25));
-	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25, 0.75));
-	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.25, 0.75));
-	tempHitValue += traceRay(0.001f, 10000.0f, vec2(0.75, 0.25));
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue / 4, 0.0));
+	// vec3 tempHitValue = vec3(0.0);
+	// tempHitValue += traceRay(0.001, 10000.0, vec2(0.25));
+	// tempHitValue += traceRay(0.001, 10000.0, vec2(0.25, 0.75));
+	// tempHitValue += traceRay(0.001, 10000.0, vec2(0.25, 0.75));
+	// tempHitValue += traceRay(0.001, 10000.0, vec2(0.75, 0.25));
+	// imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue / 4, 0.0));
 
 	//Single sample per pixel
-	// vec3 tempHitValue = traceRay(0.001f, 10000.0f, vec2(0.25));
-	// imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue, 0.0));
+	vec3 tempHitValue = traceRay(0.001f, 10000.0f, vec2(0.25));
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue, 0.0));
 }
