@@ -43,24 +43,24 @@ hitAttributeEXT vec3 attribs;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
-layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices[];
+layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices[];
 layout(binding = 5, set = 0) uniform sampler2D texSampler[];
 layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
 
 
 void main()
 {
-  uint i0 = indices.i[3 * gl_PrimitiveID];
-  uint i1 = indices.i[3 * gl_PrimitiveID + 1];
-  uint i2 = indices.i[3 * gl_PrimitiveID + 2];
+  Vertex v0 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID]];
+  Vertex v1 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID + 1]];
+  Vertex v2 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID + 2]];
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
-  vec3 position = vertices.v[i0].pos * barycentricCoords.x + vertices.v[i1].pos * barycentricCoords.y + vertices.v[i2].pos * barycentricCoords.z;
+  vec3 position = v0.pos * barycentricCoords.x + v1.pos * barycentricCoords.y + v2.pos * barycentricCoords.z;
        position = (gl_ObjectToWorldEXT * vec4(position, 1.0)).xyz;
-  vec3 normal = normalize(vertices.v[i0].normal * barycentricCoords.x + vertices.v[i1].normal * barycentricCoords.y + vertices.v[i2].normal * barycentricCoords.z);
-  vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
-  Material material = materials.m[vertices.v[i0].matID];
+  vec3 normal = normalize(v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z);
+  vec2 textureCoord = v0.texture * barycentricCoords.x + v1.texture * barycentricCoords.y + v2.texture * barycentricCoords.z;
+  Material material = materials.m[v0.matID];
   float reflectance = 0.0;
   vec3 color = vec3(1.0);
   if(material.diffuseTexId >= 0)
@@ -73,6 +73,12 @@ void main()
     specular = texture(texSampler[material.specularTexId], textureCoord).xyz * material.specular;
   else  
     specular = material.specular;
+
+  vec3 ambient = vec3(1.0);
+  if(material.ambientTexId >= 0)
+    ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * material.ambient;
+  else  
+    ambient = material.ambient;
 
   Payload.recursion++; 
   
@@ -103,9 +109,9 @@ void main()
   }
 
   if (Payload.shadow) {
-    Payload.color += Payload.weight * (1.0 - reflectance) * 0.2 * color;
+    Payload.color += Payload.weight * (1.0 - reflectance) * (ambient * 0.2 * color);
   }else{
-    Payload.color += Payload.weight * (1.0 - reflectance) * (color * cos_phi + specular * cos_psi_n);
+    Payload.color += Payload.weight * (1.0 - reflectance) * (ambient * 0.2 * color + (color * cos_phi + specular * cos_psi_n));
   }
   
   if(Payload.recursion < 4 && reflectance > 0.0001){

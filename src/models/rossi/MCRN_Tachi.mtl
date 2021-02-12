@@ -1,0 +1,48 @@
+# Blender MTL File: 'MCRN_Tachi.blend'
+# Material Count: 3
+
+newmtl Aft_Section
+Ns 179.999996
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+map_Ka textures\\Aft_Section_AO.png
+map_Kd textures\\Aft_Section_BaseColor.png
+map_Bump textures\\Aft_Section_Normal.png
+map_Ns textures\\Aft_Section_Roughness.png
+refl textures\\Aft_Section_Metallic.png
+
+newmtl Fore_Section
+Ns 179.999996
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+map_Ka textures\\Fore_Section_AO.png
+map_Kd textures\\Fore_Section_BaseColor.png
+map_Bump textures\\Fore_Section_Normal.png
+map_Ns textures\\Fore_Section_Roughness.png
+refl textures\\Fore_Section_Metallic.png
+
+newmtl Nozzle_And_PDCs
+Ns 179.999996
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+map_Ka textures\\Tachi_LP_Nozzle_And_PDCs_AO.png
+map_Kd textures\\Tachi_LP_Nozzle_And_PDCs_BaseColor.png
+map_Bump textures\\Tachi_LP_Nozzle_And_PDCs_Normal.png
+map_Ke textures\\Tachi_LP_Nozzle_And_PDCs_Emissive.png
+map_Ns textures\\Tachi_LP_Nozzle_And_PDCs_Roughness.png
+refl textures\\Tachi_LP_Nozzle_And_PDCs_Metallic.png

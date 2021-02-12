@@ -33,21 +33,21 @@ struct Material {
 
 hitAttributeEXT vec3 attribs;
 
-layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices[];
+layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices[];
 layout(binding = 5, set = 0) uniform sampler2D texSampler[];
 layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
 
 
 void main()
 {
-    uint i0 = indices.i[3 * gl_PrimitiveID];
-    Material material = materials.m[vertices.v[i0].matID];
+    Vertex v0 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID]];
+    Material material = materials.m[v0.matID];
     if(material.alphaTexId != -1){
-        uint i1 = indices.i[3 * gl_PrimitiveID + 1];
-        uint i2 = indices.i[3 * gl_PrimitiveID + 2];
+        Vertex v1 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID + 1]];
+        Vertex v2 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID + 2]];
         const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-        vec2 textureCoord = vertices.v[i0].texture * barycentricCoords.x + vertices.v[i1].texture * barycentricCoords.y + vertices.v[i2].texture * barycentricCoords.z;
+        vec2 textureCoord = v0.texture * barycentricCoords.x + v1.texture * barycentricCoords.y + v2.texture * barycentricCoords.z;
         if(texture(texSampler[material.alphaTexId], textureCoord).x <= 0.000001){
             ignoreIntersectionEXT;
         }

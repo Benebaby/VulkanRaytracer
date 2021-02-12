@@ -57,15 +57,22 @@ void Camera::update(){
 
 
     if (glfwGetKey(m_window, GLFW_KEY_C) == GLFW_PRESS && m_timeout <= 0.00001){
-        if(m_type == TypeTrackBall)
+        if(m_type == TypeTrackBall){
             m_type = TypeFirstPerson;
-        else
+            m_forward = glm::normalize(m_center - m_eye);
+            m_forward.y = 0.0f;
+            m_forward = glm::normalize(m_forward);
+            m_angle.x += 3.141592f;
+        }
+        else{
             m_type = TypeTrackBall;
+            glm::vec3 dir = glm::normalize(m_eye);
+            m_angle = glm::vec2(glm::atan(dir.z, dir.x) + 3.141592f, glm::acos(dir.y));
+        }
         m_timeout = 0.3;
     }
     if(m_timeout >= 0.0)
         m_timeout -= time;
-
     if(m_type == TypeTrackBall){
         m_eye.x = Camera::m_radius * sin(m_angle.y) * sin(m_angle.x);
         m_eye.y = Camera::m_radius * cos(m_angle.y);

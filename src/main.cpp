@@ -1,7 +1,5 @@
 #include <fstream>
 #include <chrono>
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
 #include <vulkan/vulkan.hpp>
 
 #include "GlobalDefs.h"
@@ -10,6 +8,8 @@
 #include "Buffer.h"
 #include "Texture.h"
 #include "Camera.h"
+#include "BottomLevelTriangleAS.h"
+#include "BottomLevelSphereAS.h"
 
 struct AccelerationStructure
 {
@@ -58,15 +58,8 @@ private:
     std::vector<VkCommandBuffer> commandBuffers;
 
     Texture* storageImage;
-    AccelerationStructure bottomLevelAccelerationStructure;
-    AccelerationStructure bottomLevelAccelerationStructureSpheres;
 	AccelerationStructure topLevelAccelerationStructure;
 
-    Buffer* sphereBuffer;
-    Buffer* materialBuffer;
-    Buffer* vertexBuffer;
-    Buffer* indexBuffer;
-    Buffer* transformBuffer;
     Buffer* uniformBuffer;
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
@@ -76,11 +69,9 @@ private:
 
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-    std::vector<Sphere> spheres;
-    std::vector<Material> materials;
-    std::vector<Texture> textures;
+    BottomLevelAS* sponza;
+    BottomLevelAS* rossi;
+    BottomLevelAS* singleSphere;
 
     Camera cam;
 
@@ -113,10 +104,18 @@ private:
 
         getExtensionFunctionPointers();
         createStorageImage();
-        loadModel("/sponza/sponza.obj");
-        createSpheres();
-        createBottomLevelAccelerationStructure();
-        createBottomLevelAccelerationStructureSpheres();
+        sponza = new BottomLevelTriangleAS(m_device, "sponza");
+        sponza->uploadData("/sponza/sponza.obj");
+        sponza->create();
+
+        rossi = new BottomLevelTriangleAS(m_device, "rossi");
+        rossi->uploadData("/rossi/MCRN_Tachi.obj");
+        rossi->create();
+
+        singleSphere = new BottomLevelSphereAS(m_device, "sphere");
+        singleSphere->createSpheres();
+        singleSphere->create();
+
         createTopLevelAccelerationStructure();
         createUniformBuffer();
         createRayTracingPipeline();
@@ -173,10 +172,6 @@ private:
             vkDestroyFramebuffer(m_device->getHandle(), framebuffer, nullptr);
         }
 
-        for(Texture texture : textures){
-            texture.destroy();
-        }
-
         vkFreeCommandBuffers(m_device->getHandle(), m_device->getCommandPool(), static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
         
         vkDestroyPipeline(m_device->getHandle(), rayTracingPipeline, nullptr);
@@ -200,29 +195,19 @@ private:
 
         //-----
     
+        for(Texture texture : BottomLevelAS::m_textures){
+            texture.destroy();
+        }
+
+        rossi->destroy();
+        sponza->destroy();
+        singleSphere->destroy();
+
+        BottomLevelAS::m_materialBuffer.destroy();
+
         topLevelAccelerationStructure.buffer.destroy();
         vkDestroyAccelerationStructureKHR(m_device->getHandle(), topLevelAccelerationStructure.accelerationStructure, nullptr);
 
-        bottomLevelAccelerationStructure.buffer.destroy();
-        vkDestroyAccelerationStructureKHR(m_device->getHandle(), bottomLevelAccelerationStructure.accelerationStructure, nullptr);
-
-        bottomLevelAccelerationStructureSpheres.buffer.destroy();
-        vkDestroyAccelerationStructureKHR(m_device->getHandle(), bottomLevelAccelerationStructureSpheres.accelerationStructure, nullptr);
-
-        indexBuffer->destroy();
-        delete indexBuffer;
-
-        vertexBuffer->destroy();
-        delete vertexBuffer;
-
-        sphereBuffer->destroy();
-        delete sphereBuffer;
-
-        materialBuffer->destroy();
-        delete materialBuffer;
-
-        transformBuffer->destroy();
-        delete transformBuffer;
 
         raygenShaderBindingTable->destroy();
         delete raygenShaderBindingTable;
@@ -339,404 +324,25 @@ private:
         storageImage = new Texture(m_device, swapChainExtent.width, swapChainExtent.height, VK_FORMAT_B8G8R8A8_UNORM);
     }
 
-    void loadModel(std::string Modelpath) {
-        tinyobj::ObjReaderConfig reader_config;
-        reader_config.mtl_search_path = "";
-        reader_config.triangulate = true;
+    void createTopLevelAccelerationStructure(){
+        auto materialBufferSize = BottomLevelAS::m_materials.size() * sizeof(Material);
 
-        uint32_t materialOffset = static_cast<uint32_t>(materials.size());
+        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        BottomLevelAS::m_materialBuffer = Buffer(m_device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
+        BottomLevelAS::m_materialBuffer.map(materialBufferSize, 0);
+        BottomLevelAS::m_materialBuffer.copyTo(BottomLevelAS::m_materials.data(), materialBufferSize);
+        BottomLevelAS::m_materialBuffer.unmap();
 
-        tinyobj::ObjReader reader;
-
-        if (!reader.ParseFromFile((MODEL_PATH+Modelpath), reader_config)) {
-        if (!reader.Error().empty()) {
-            std::cerr << "TinyObjReader: " << reader.Error();
-        }
-        exit(1);
-        }
-
-        if (!reader.Warning().empty()) {
-        std::cout << "TinyObjReader: " << reader.Warning();
-        }
-
-        auto& attrib = reader.GetAttrib();
-        auto& shapes = reader.GetShapes();
-        auto& objMaterials = reader.GetMaterials();
-
-        std::cout << "Found Materials: " << objMaterials.size() << std::endl;
-        for(tinyobj::material_t objMaterial : objMaterials){
-            Material material{};
-            material.ambient[0] = objMaterial.ambient[0];               material.ambient[1] = objMaterial.ambient[1];               material.ambient[2] = objMaterial.ambient[2];
-            material.diffuse[0] = objMaterial.diffuse[0];               material.diffuse[1] = objMaterial.diffuse[1];               material.diffuse[2] = objMaterial.diffuse[2];
-            material.specular[0] = objMaterial.specular[0];             material.specular[1] = objMaterial.specular[1];             material.specular[2] = objMaterial.specular[2];
-            material.transmittance[0] = objMaterial.transmittance[0];   material.transmittance[1] = objMaterial.transmittance[1];   material.transmittance[2] = objMaterial.transmittance[2];
-            material.emission[0] = objMaterial.emission[0];             material.emission[1] = objMaterial.emission[1];             material.emission[2] = objMaterial.emission[2];
-            material.shininess = objMaterial.shininess;
-            material.ior = objMaterial.ior;                     // index of refraction
-            material.dissolve = objMaterial.dissolve;                // 1 == opaque; 0 == fully transparent
-            material.illum = objMaterial.illum;                   // Beleuchtungsmodell
-            if(objMaterial.ambient_texname.length() != 0 ){
-                std::string base_filename = objMaterial.ambient_texname.substr(objMaterial.ambient_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.ambientTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ka
-            }else{
-                material.ambientTexId = -1;
-            }
-            if(objMaterial.diffuse_texname.length() != 0 ){
-                std::string base_filename = objMaterial.diffuse_texname.substr(objMaterial.diffuse_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.diffuseTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Kd
-            }else{
-                material.diffuseTexId = -1;
-            }
-            if(objMaterial.specular_texname.length() != 0 ){
-                std::string base_filename = objMaterial.specular_texname.substr(objMaterial.specular_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.specularTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ks
-            }else{
-                material.specularTexId = -1;
-            }
-            if(objMaterial.specular_highlight_texname.length() != 0 ){
-                std::string base_filename = objMaterial.specular_highlight_texname.substr(objMaterial.specular_highlight_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.specularHighlightTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Ns
-            }else{
-                material.specularHighlightTexId = -1;
-            }
-            if(objMaterial.bump_texname.length() != 0 ){
-                std::string base_filename = objMaterial.bump_texname.substr(objMaterial.bump_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.bumpTexId = static_cast<uint32_t>(textures.size() - 1);            // map_bump, map_Bump, bump
-            }else{
-                material.bumpTexId = -1;
-            }
-            if(objMaterial.displacement_texname.length() != 0 ){
-                std::string base_filename = objMaterial.displacement_texname.substr(objMaterial.displacement_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.displacementTexId = static_cast<uint32_t>(textures.size() - 1);            // disp
-            }else{
-                material.displacementTexId = -1;
-            }
-            if(objMaterial.alpha_texname.length() != 0 ){
-                std::string base_filename = objMaterial.alpha_texname.substr(objMaterial.alpha_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.alphaTexId = static_cast<uint32_t>(textures.size() - 1);            // map_d
-            }else{
-                material.alphaTexId = -1;
-            }
-            if(objMaterial.reflection_texname.length() != 0 ){
-                std::string base_filename = objMaterial.reflection_texname.substr(objMaterial.reflection_texname.find_last_of("/\\") + 1);
-                textures.push_back(Texture(m_device, "/sponza/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
-                material.reflectionTexId = static_cast<uint32_t>(textures.size() - 1);            // refl
-            }else{
-                material.reflectionTexId = -1;
-            }
-            materials.push_back(material);
-        }
-
-        uint32_t current_index = 0; 
-        bool hasNormals = attrib.normals.size() > 0;
-        bool hasUVs = attrib.texcoords.size() > 0;
-
-        // Loop over shapes
-        for (size_t s = 0; s < shapes.size(); s++) {
-            // Loop over faces(polygon)
-            size_t index_offset = 0;
-            for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-                int fv = shapes[s].mesh.num_face_vertices[f];
-                int matID = shapes[s].mesh.material_ids[f];
-                // Loop over vertices in the face.
-                for (size_t v = 0; v < fv; v++) {
-                    tinyobj::index_t index = shapes[s].mesh.indices[index_offset + v];
-                    Vertex vertex{};
-                    vertex.matID = materialOffset + matID;
-                    vertex.position[0] = attrib.vertices[3 * index.vertex_index + 0];
-                    vertex.position[1] = attrib.vertices[3 * index.vertex_index + 1];
-                    vertex.position[2] = attrib.vertices[3 * index.vertex_index + 2];
-                    if(hasNormals){
-                        vertex.normal[0] = attrib.normals[3 * index.normal_index + 0];
-                        vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
-                        vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
-                    }else{
-                        vertex.normal[0] = 0;
-                        vertex.normal[1] = 0;
-                        vertex.normal[2] = 0;
-                    }
-                    if(hasUVs){
-                        vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
-                        vertex.texture[1] = 1.0f - attrib.texcoords[2 * index.texcoord_index + 1];
-                    }else{
-                        vertex.texture[0] = 0;
-                        vertex.texture[1] = 0;
-                    }
-                    // Optional: vertex colors
-                    // vertex.color[0] = attrib.colors[3*idx.vertex_index+0];
-                    // vertex.color[1] = attrib.colors[3*idx.vertex_index+1];
-                    // vertex.color[2] = attrib.colors[3*idx.vertex_index+2];
-                    vertices.push_back(vertex);
-                    indices.push_back(current_index);
-                    current_index++;
-                }
-                index_offset += fv;
-            }
-        }
-    }
-
-    void createSpheres(){
-        uint32_t materialOffset = static_cast<uint32_t>(materials.size());
-
-        Material material{};
-        material.ambient[0] = 1.0f;         material.ambient[1] = 1.0f;         material.ambient[2] = 1.0f;
-        material.diffuse[0] = 1.0f;         material.diffuse[1] = 0.0f;         material.diffuse[2] = 1.0f;
-        material.specular[0] = 1.0f;        material.specular[1] = 1.0f;        material.specular[2] = 1.0f;
-        material.transmittance[0] = 0.0f;   material.transmittance[1] = 0.0f;   material.transmittance[2] = 0.0f;
-        material.emission[0] = 0.0f;        material.emission[1] = 0.0f;        material.emission[2] = 0.0f;
-        material.shininess = 100.0f; 
-        material.ior = 1.0f;                  // index of refraction
-        material.dissolve = 1.0f;             // 1 == opaque; 0 == fully transparent
-        material.illum = 2;                   // Beleuchtungsmodell
-        material.ambientTexId = -1;
-        textures.push_back(Texture(m_device, "/checker.png", VK_FORMAT_R8G8B8A8_SRGB));
-        material.diffuseTexId = static_cast<uint32_t>(textures.size() - 1);            // map_Kd
-        material.specularTexId = -1;
-        material.specularHighlightTexId = -1;
-        material.bumpTexId = -1;
-        material.displacementTexId = -1;
-        material.alphaTexId = -1;
-        material.reflectionTexId = -1;
-        materials.push_back(material);
-
-        Sphere sphere;
-        sphere.matID = materialOffset + 0;
-        sphere.center[0] = 0.f; 
-        sphere.center[1] = 0.f; 
-        sphere.center[2] = 0.f;
-        sphere.radius = 0.5f;
-        sphere.aabbmin[0] = sphere.center[0] - sphere.radius; 
-        sphere.aabbmin[1] = sphere.center[1] - sphere.radius; 
-        sphere.aabbmin[2] = sphere.center[2] - sphere.radius;
-        sphere.aabbmax[0] = sphere.center[0] + sphere.radius; 
-        sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
-        sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
-        spheres.push_back(sphere);
-    }
-
-    void createBottomLevelAccelerationStructure(){
-        uint32_t numTriangles = static_cast<uint32_t>(vertices.size()) / 3;
-		uint32_t maxVertex = static_cast<uint32_t>(vertices.size());
-        VkTransformMatrixKHR transformMatrix = {
+        VkTransformMatrixKHR transformMatrix0 = {
             1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, -1.55f,
             0.0f, 0.0f, 1.0f, 0.0f
         };
-
-        auto vertexBufferSize = vertices.size() * sizeof(Vertex);
-        auto materialBufferSize = materials.size() * sizeof(Material);
-	    auto indexBufferSize  = indices.size() * sizeof(uint32_t);
-        auto transformBufferSize = sizeof(transformMatrix);
-
-        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-        vertexBuffer = new Buffer(m_device, vertexBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        vertexBuffer->map(vertexBufferSize, 0);
-        vertexBuffer->copyTo(vertices.data(), vertexBufferSize);
-        vertexBuffer->unmap();
-
-        materialBuffer = new Buffer(m_device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        materialBuffer->map(materialBufferSize, 0);
-        materialBuffer->copyTo(materials.data(), materialBufferSize);
-        materialBuffer->unmap();
-
-        indexBuffer = new Buffer(m_device, indexBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        indexBuffer->map(indexBufferSize, 0);
-        indexBuffer->copyTo(indices.data(), indexBufferSize);
-        indexBuffer->unmap();
-
-        transformBuffer = new Buffer(m_device, transformBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        transformBuffer->map(transformBufferSize, 0);
-        transformBuffer->copyTo(&transformMatrix, transformBufferSize);
-        transformBuffer->unmap();
-
-        VkDeviceOrHostAddressConstKHR vertexDataDeviceAddress{};
-        VkDeviceOrHostAddressConstKHR indexDataDeviceAddress{};
-        VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
-
-        vertexDataDeviceAddress.deviceAddress      = vertexBuffer->getDeviceAddress();
-        indexDataDeviceAddress.deviceAddress       = indexBuffer->getDeviceAddress();
-        transformMatrixDeviceAddress.deviceAddress = transformBuffer->getDeviceAddress();
-
-        VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-        accelerationStructureGeometry.sType                            = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-        accelerationStructureGeometry.geometryType                     = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-        accelerationStructureGeometry.flags                            = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
-        accelerationStructureGeometry.geometry.triangles.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-        accelerationStructureGeometry.geometry.triangles.vertexFormat  = VK_FORMAT_R32G32B32_SFLOAT;
-        accelerationStructureGeometry.geometry.triangles.vertexData    = vertexDataDeviceAddress;
-        accelerationStructureGeometry.geometry.triangles.maxVertex     = maxVertex;
-        accelerationStructureGeometry.geometry.triangles.vertexStride  = sizeof(Vertex);
-        accelerationStructureGeometry.geometry.triangles.indexType     = VK_INDEX_TYPE_UINT32;
-        accelerationStructureGeometry.geometry.triangles.indexData     = indexDataDeviceAddress;
-        accelerationStructureGeometry.geometry.triangles.transformData = transformMatrixDeviceAddress;
-
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-        accelerationStructureBuildGeometryInfo.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationStructureBuildGeometryInfo.type          = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        accelerationStructureBuildGeometryInfo.flags         = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-        accelerationStructureBuildGeometryInfo.geometryCount = 1;
-        accelerationStructureBuildGeometryInfo.pGeometries   = &accelerationStructureGeometry;
-
-        const uint32_t primitiveCount = 1;
-
-        VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
-        accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-
-        vkGetAccelerationStructureBuildSizesKHR(m_device->getHandle(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numTriangles, &accelerationStructureBuildSizesInfo);
-
-        bottomLevelAccelerationStructure.buffer = Buffer(m_device, accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR);
-
-        VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-        accelerationStructureCreateInfo.sType  = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-        accelerationStructureCreateInfo.buffer = bottomLevelAccelerationStructure.buffer.getHandle();
-        accelerationStructureCreateInfo.size   = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-        accelerationStructureCreateInfo.type   = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-
-        vkCreateAccelerationStructureKHR(m_device->getHandle(), &accelerationStructureCreateInfo, nullptr, &bottomLevelAccelerationStructure.accelerationStructure);
-
-        Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
-
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
-        accelerationBuildGeometryInfo.sType                     = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationBuildGeometryInfo.type                      = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        accelerationBuildGeometryInfo.flags                     = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-        accelerationBuildGeometryInfo.mode                      = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-        accelerationBuildGeometryInfo.dstAccelerationStructure  = bottomLevelAccelerationStructure.accelerationStructure;
-        accelerationBuildGeometryInfo.geometryCount             = 1;
-        accelerationBuildGeometryInfo.pGeometries               = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getDeviceAddress();
-
-        VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount                                           = numTriangles;
-        accelerationStructureBuildRangeInfo.primitiveOffset                                          = 0;
-        accelerationStructureBuildRangeInfo.firstVertex                                              = 0;
-        accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
-        std::vector<VkAccelerationStructureBuildRangeInfoKHR *> accelerationBuildStructureRangeInfos = {&accelerationStructureBuildRangeInfo};
-
-        if (m_device->supportsAccelerationStructureHostCommands())
-		{
-			vkBuildAccelerationStructuresKHR(m_device->getHandle(), VK_NULL_HANDLE, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-		}else{
-            VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-            vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-            flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-            scratchBuffer.destroy();
-        }
-
-        VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
-        accelerationDeviceAddressInfo.sType                 = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAccelerationStructure.accelerationStructure;
-        bottomLevelAccelerationStructure.device_address     = vkGetAccelerationStructureDeviceAddressKHR(m_device->getHandle(), &accelerationDeviceAddressInfo);
-    }
-
-    void createBottomLevelAccelerationStructureSpheres(){
-        uint32_t numSpheres = static_cast<uint32_t>(spheres.size());
-        auto sphereBufferSize = numSpheres * sizeof(Sphere);
-
-        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-        sphereBuffer = new Buffer(m_device, sphereBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        sphereBuffer->map(sphereBufferSize, 0);
-        sphereBuffer->copyTo(spheres.data(), sphereBufferSize);
-        sphereBuffer->unmap();
-
-        VkDeviceOrHostAddressConstKHR sphereDataDeviceAddress{};
-        VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
-
-        sphereDataDeviceAddress.deviceAddress      = sphereBuffer->getDeviceAddress();
-        transformMatrixDeviceAddress.deviceAddress = transformBuffer->getDeviceAddress();
-
-        VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-        accelerationStructureGeometry.sType                            = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-        accelerationStructureGeometry.geometryType                     = VK_GEOMETRY_TYPE_AABBS_KHR;
-        accelerationStructureGeometry.flags                            = VK_GEOMETRY_OPAQUE_BIT_KHR;
-        accelerationStructureGeometry.geometry.aabbs.sType             = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
-        accelerationStructureGeometry.geometry.aabbs.data              = sphereDataDeviceAddress;
-        accelerationStructureGeometry.geometry.aabbs.stride            = sizeof(Sphere);
-
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-        accelerationStructureBuildGeometryInfo.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationStructureBuildGeometryInfo.type          = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        accelerationStructureBuildGeometryInfo.flags         = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-        accelerationStructureBuildGeometryInfo.geometryCount = 1;
-        accelerationStructureBuildGeometryInfo.pGeometries   = &accelerationStructureGeometry;
-
-        const uint32_t primitiveCount = 1;
-
-        VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
-        accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-
-        vkGetAccelerationStructureBuildSizesKHR(m_device->getHandle(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &numSpheres, &accelerationStructureBuildSizesInfo);
-
-        bottomLevelAccelerationStructureSpheres.buffer = Buffer(m_device, accelerationStructureBuildSizesInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR);
-        VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-        accelerationStructureCreateInfo.sType  = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-        accelerationStructureCreateInfo.buffer = bottomLevelAccelerationStructureSpheres.buffer.getHandle();
-        accelerationStructureCreateInfo.size   = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-        accelerationStructureCreateInfo.type   = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-
-        vkCreateAccelerationStructureKHR(m_device->getHandle(), &accelerationStructureCreateInfo, nullptr, &bottomLevelAccelerationStructureSpheres.accelerationStructure);
-
-        Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
-
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
-        accelerationBuildGeometryInfo.sType                     = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationBuildGeometryInfo.type                      = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        accelerationBuildGeometryInfo.flags                     = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-        accelerationBuildGeometryInfo.mode                      = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-        accelerationBuildGeometryInfo.dstAccelerationStructure  = bottomLevelAccelerationStructureSpheres.accelerationStructure;
-        accelerationBuildGeometryInfo.geometryCount             = 1;
-        accelerationBuildGeometryInfo.pGeometries               = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getDeviceAddress();
-
-        VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount                                           = numSpheres;
-        accelerationStructureBuildRangeInfo.primitiveOffset                                          = 0;
-        accelerationStructureBuildRangeInfo.firstVertex                                              = 0;
-        accelerationStructureBuildRangeInfo.transformOffset                                          = 0;
-        std::vector<VkAccelerationStructureBuildRangeInfoKHR *> accelerationBuildStructureRangeInfos = {&accelerationStructureBuildRangeInfo};
-
-        if (m_device->supportsAccelerationStructureHostCommands())
-		{
-			vkBuildAccelerationStructuresKHR(m_device->getHandle(), VK_NULL_HANDLE, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-		}else{
-            VkCommandBuffer command_buffer = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-            vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-            flushCommandBuffer(command_buffer, m_device->getGraphicsQueue());
-            scratchBuffer.destroy();
-        }
-
-        VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
-        accelerationDeviceAddressInfo.sType                 = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAccelerationStructureSpheres.accelerationStructure;
-        bottomLevelAccelerationStructureSpheres.device_address = vkGetAccelerationStructureDeviceAddressKHR(m_device->getHandle(), &accelerationDeviceAddressInfo);
-    }
-
-    void createTopLevelAccelerationStructure(){
-        VkTransformMatrixKHR transformMatrix0 = {
-            1.1f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.1f, 0.0f, -1.55f,
-            0.0f, 0.0f, 1.1f, 0.0f
-        };
         VkTransformMatrixKHR transformMatrix1 = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 20.0f
-        };
-        VkTransformMatrixKHR transformMatrix2 = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, -20.0f
+            0.2f, 0.0f, 0.0f, -3.0f,
+            0.0f, 0.2f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.2f, 0.0f
         };
         VkTransformMatrixKHR transformMatrix3 = {
             0.0f, -1.0f, 0.0f, 0.f,
@@ -746,38 +352,30 @@ private:
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
         accelerationStructureInstance0.transform                              = transformMatrix0;
-        accelerationStructureInstance0.instanceCustomIndex                    = 0;
+        accelerationStructureInstance0.instanceCustomIndex                    = sponza->getId();
         accelerationStructureInstance0.mask                                   = 0xFF;
         accelerationStructureInstance0.instanceShaderBindingTableRecordOffset = 0;
         accelerationStructureInstance0.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance0.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+        accelerationStructureInstance0.accelerationStructureReference         = sponza->getDeviceAdress();
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
         accelerationStructureInstance1.transform                              = transformMatrix1;
-        accelerationStructureInstance1.instanceCustomIndex                    = 1;
+        accelerationStructureInstance1.instanceCustomIndex                    = rossi->getId();
         accelerationStructureInstance1.mask                                   = 0xFF;
         accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
         accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance1.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
-
-        VkAccelerationStructureInstanceKHR accelerationStructureInstance2{};
-        accelerationStructureInstance2.transform                              = transformMatrix2;
-        accelerationStructureInstance2.instanceCustomIndex                    = 2;
-        accelerationStructureInstance2.mask                                   = 0xFF;
-        accelerationStructureInstance2.instanceShaderBindingTableRecordOffset = 0;
-        accelerationStructureInstance2.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance2.accelerationStructureReference         = bottomLevelAccelerationStructure.device_address;
+        accelerationStructureInstance1.accelerationStructureReference         = rossi->getDeviceAdress();
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
         accelerationStructureInstance3.transform                              = transformMatrix3;
-        accelerationStructureInstance3.instanceCustomIndex                    = 3;
+        accelerationStructureInstance3.instanceCustomIndex                    = singleSphere->getId();
         accelerationStructureInstance3.mask                                   = 0xFF;
         accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
         accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance3.accelerationStructureReference         = bottomLevelAccelerationStructureSpheres.device_address;
+        accelerationStructureInstance3.accelerationStructureReference         = singleSphere->getDeviceAdress();
 
 
-        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance2, accelerationStructureInstance3};
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance3};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
         Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        instancesBuffer.map(geometryInstancesSize, 0);
@@ -890,7 +488,7 @@ private:
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(textures.size())}
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(BottomLevelAS::m_textures.size())}
         };
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -943,7 +541,7 @@ private:
         uniformBufferWrite.descriptorCount = 1;
         uniformBufferWrite.pBufferInfo = &uniformBufferDescriptor;
 
-        VkDescriptorBufferInfo vertexBufferDescriptor = vertexBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0);
+        std::vector<VkDescriptorBufferInfo> descriptorVertexBufferInfos = {sponza->getVertexBufferDescriptor(), rossi->getVertexBufferDescriptor()};
 
         VkWriteDescriptorSet vertexBufferWrite{};
         vertexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -951,10 +549,10 @@ private:
         vertexBufferWrite.dstBinding = 3;
         vertexBufferWrite.dstArrayElement = 0;
         vertexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        vertexBufferWrite.descriptorCount = 1;
-        vertexBufferWrite.pBufferInfo = &vertexBufferDescriptor;
+        vertexBufferWrite.descriptorCount = 2;
+        vertexBufferWrite.pBufferInfo = descriptorVertexBufferInfos.data();
 
-        VkDescriptorBufferInfo indexBufferDescriptor = indexBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0); 
+        std::vector<VkDescriptorBufferInfo>	descriptorIndexBufferInfos = {sponza->getIndexBufferDescriptor(), rossi->getIndexBufferDescriptor()};
 
         VkWriteDescriptorSet indexBufferWrite{};
         indexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -962,13 +560,13 @@ private:
         indexBufferWrite.dstBinding = 4;
         indexBufferWrite.dstArrayElement = 0;
         indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        indexBufferWrite.descriptorCount = 1;
-        indexBufferWrite.pBufferInfo = &indexBufferDescriptor;
+        indexBufferWrite.descriptorCount = 2;
+        indexBufferWrite.pBufferInfo = descriptorIndexBufferInfos.data();
         
-        std::vector<VkDescriptorImageInfo>	descriptorImageInfos(textures.size());
-        for (size_t i = 0; i < textures.size(); i++)
+        std::vector<VkDescriptorImageInfo>	descriptorImageInfos(BottomLevelAS::m_textures.size());
+        for (size_t i = 0; i < BottomLevelAS::m_textures.size(); i++)
         {
-            descriptorImageInfos[i] = textures[i].getDescriptorInfo();
+            descriptorImageInfos[i] = BottomLevelAS::m_textures[i].getDescriptorInfo();
         }
 
         VkWriteDescriptorSet textureImageWrite{};
@@ -977,10 +575,10 @@ private:
         textureImageWrite.dstBinding = 5;
         textureImageWrite.dstArrayElement = 0;
         textureImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        textureImageWrite.descriptorCount = static_cast<uint32_t>(textures.size());
+        textureImageWrite.descriptorCount = static_cast<uint32_t>(BottomLevelAS::m_textures.size());
         textureImageWrite.pImageInfo = descriptorImageInfos.data();
 
-        VkDescriptorBufferInfo sphereBufferDescriptor = sphereBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0);
+        VkDescriptorBufferInfo sphereBufferDescriptor = singleSphere->getSphereBufferDescriptor();
 
         VkWriteDescriptorSet sphereBufferWrite{};
         sphereBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -991,7 +589,7 @@ private:
         sphereBufferWrite.descriptorCount = 1;
         sphereBufferWrite.pBufferInfo = &sphereBufferDescriptor;
 
-        VkDescriptorBufferInfo materialBufferDescriptor = materialBuffer->getDescriptorInfo(VK_WHOLE_SIZE, 0);
+        VkDescriptorBufferInfo materialBufferDescriptor = BottomLevelAS::m_materialBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
 
         VkWriteDescriptorSet materialBufferWrite{};
         materialBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1079,19 +677,19 @@ private:
         VkDescriptorSetLayoutBinding vertex_buffer_binding{};
         vertex_buffer_binding.binding         = 3;
         vertex_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        vertex_buffer_binding.descriptorCount = 1;
+        vertex_buffer_binding.descriptorCount = 2;
         vertex_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding index_buffer_binding{};
         index_buffer_binding.binding         = 4;
         index_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        index_buffer_binding.descriptorCount = 1;
+        index_buffer_binding.descriptorCount = 2;
         index_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
         samplerLayoutBinding.binding = 5;
         samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.descriptorCount = static_cast<uint32_t>(textures.size());
+        samplerLayoutBinding.descriptorCount = static_cast<uint32_t>(BottomLevelAS::m_textures.size());
         samplerLayoutBinding.pImmutableSamplers = nullptr;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
