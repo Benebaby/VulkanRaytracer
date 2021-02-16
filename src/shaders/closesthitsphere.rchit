@@ -53,6 +53,7 @@ void main()
   sphere.center = (gl_ObjectToWorldEXT * vec4(sphere.center, 1.0)).xyz;
 
   vec3 position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+       position = sphere.center + sphere.radius * normalize(position - sphere.center);
   vec3 normal = normalize(position - sphere.center);
   vec3 rotatedNormal = mat3(gl_ObjectToWorldEXT) * normal;
   vec2 textureCoord = vec2((1 + atan(rotatedNormal.z, rotatedNormal.x) / 3.14159f) * 0.5, acos(rotatedNormal.y) / 3.14159f);
