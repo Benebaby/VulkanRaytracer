@@ -75,10 +75,17 @@ void main()
     specular = material.specular;
 
   vec3 ambient = vec3(1.0);
-  if(material.ambientTexId >= 0)
-    ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * material.ambient;
-  else  
+  if(material.ambientTexId >= 0){
+    if(material.ambient.length() < 0.001)
+      ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * vec3(0.3);
+    else{
+      ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * material.ambient;
+    }
+  }else{
     ambient = material.ambient;
+    if(material.ambient.length() < 0.001)
+      ambient = vec3(0.3);
+  }  
 
   Payload.recursion++; 
   
@@ -109,9 +116,9 @@ void main()
   }
 
   if (Payload.shadow) {
-    Payload.color += Payload.weight * (1.0 - reflectance) * (ambient * 0.2 * color);
+    Payload.color += Payload.weight * (1.0 - reflectance) * ambient;
   }else{
-    Payload.color += Payload.weight * (1.0 - reflectance) * (ambient * 0.2 * color + (color * cos_phi + specular * cos_psi_n));
+    Payload.color += Payload.weight * (1.0 - reflectance) * (ambient + (color * cos_phi + specular * cos_psi_n));
   }
   
   if(Payload.recursion < 4 && reflectance > 0.0001){

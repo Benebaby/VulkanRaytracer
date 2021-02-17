@@ -1,9 +1,14 @@
 #include "BottomLevelSphereAS.h"
 
 uint32_t BottomLevelSphereAS::m_count = 0;
+std::vector<VkDescriptorBufferInfo> BottomLevelSphereAS::m_sphereBufferDescriptors;
 
 BottomLevelSphereAS::BottomLevelSphereAS(Device* device, std::string name) : BottomLevelAS(device, name, m_count){
     m_count++;
+}
+
+VkDescriptorBufferInfo* BottomLevelSphereAS::getSphereBufferDescriptors(){
+    return m_sphereBufferDescriptors.data();
 }
 
 void BottomLevelSphereAS::createSpheres(){
@@ -42,6 +47,10 @@ void BottomLevelSphereAS::createSpheres(){
     sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
     sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
     m_spheres.push_back(sphere);
+}
+
+uint32_t BottomLevelSphereAS::getCount(){
+    return m_count;
 }
 
 void BottomLevelSphereAS::create(){
@@ -139,6 +148,8 @@ void BottomLevelSphereAS::create(){
     accelerationDeviceAddressInfo.accelerationStructure = m_handle;
 
     m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(m_device->getHandle(), &accelerationDeviceAddressInfo);
+
+    m_sphereBufferDescriptors.push_back(m_sphereBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0));
 }
 
 void BottomLevelSphereAS::destroy(){
@@ -146,10 +157,6 @@ void BottomLevelSphereAS::destroy(){
     m_transformBuffer.destroy();
     m_accelerationStructureBuffer.destroy();
     vkDestroyAccelerationStructureKHR(m_device->getHandle(), m_handle, nullptr);
-}
-
-VkDescriptorBufferInfo BottomLevelSphereAS::getSphereBufferDescriptor(){
-    return m_sphereBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
 }
 
 BottomLevelSphereAS::~BottomLevelSphereAS(){

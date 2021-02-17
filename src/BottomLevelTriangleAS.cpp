@@ -1,6 +1,8 @@
 #include "BottomLevelTriangleAS.h"
 
 uint32_t BottomLevelTriangleAS::m_count = 0;
+std::vector<VkDescriptorBufferInfo> BottomLevelTriangleAS::m_vertexBufferDescriptors;
+std::vector<VkDescriptorBufferInfo> BottomLevelTriangleAS::m_indexBufferDescriptors;
 
 BottomLevelTriangleAS::BottomLevelTriangleAS(Device* device, std::string name) : BottomLevelAS(device, name, m_count){
     m_count++;
@@ -114,6 +116,16 @@ void BottomLevelTriangleAS::uploadData(std::string path){
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
             int fv = shapes[s].mesh.num_face_vertices[f];
             int matID = shapes[s].mesh.material_ids[f];
+            glm::vec3 normal;
+            if(!hasNormals){
+                tinyobj::index_t index = shapes[s].mesh.indices[index_offset];
+                glm::vec3 v0 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                index = shapes[s].mesh.indices[index_offset + 1];
+                glm::vec3 v1 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                index = shapes[s].mesh.indices[index_offset + 2];
+                glm::vec3 v2 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                normal = glm::cross(v1 - v0, v2 - v0);
+            }
             for (size_t v = 0; v < fv; v++) {
                 tinyobj::index_t index = shapes[s].mesh.indices[index_offset + v];
                 Vertex vertex{};
@@ -126,9 +138,9 @@ void BottomLevelTriangleAS::uploadData(std::string path){
                     vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
                     vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
                 }else{
-                    vertex.normal[0] = 0;
-                    vertex.normal[1] = 0;
-                    vertex.normal[2] = 0;
+                    vertex.normal[0] = normal.x;
+                    vertex.normal[1] = normal.y;
+                    vertex.normal[2] = normal.z;
                 }
                 if(hasUVs){
                     vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
@@ -256,6 +268,9 @@ void BottomLevelTriangleAS::create(){
     accelerationDeviceAddressInfo.accelerationStructure = m_handle;
 
     m_deviceAddress     = vkGetAccelerationStructureDeviceAddressKHR(m_device->getHandle(), &accelerationDeviceAddressInfo);
+
+    m_vertexBufferDescriptors.push_back(m_vertexBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0));
+    m_indexBufferDescriptors.push_back(m_indexBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0));
 }
 
 void BottomLevelTriangleAS::destroy(){
@@ -266,12 +281,16 @@ void BottomLevelTriangleAS::destroy(){
     vkDestroyAccelerationStructureKHR(m_device->getHandle(), m_handle, nullptr);
 }
 
-VkDescriptorBufferInfo BottomLevelTriangleAS::getVertexBufferDescriptor(){
-    return m_vertexBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
+VkDescriptorBufferInfo* BottomLevelTriangleAS::getVertexBufferDescriptors(){
+    return m_vertexBufferDescriptors.data();
 }
 
-VkDescriptorBufferInfo BottomLevelTriangleAS::getIndexBufferDescriptor(){
-    return m_indexBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
+VkDescriptorBufferInfo* BottomLevelTriangleAS::getIndexBufferDescriptors(){
+    return m_indexBufferDescriptors.data();
+}
+
+uint32_t BottomLevelTriangleAS::getCount(){
+    return m_count;
 }
 
 BottomLevelTriangleAS::~BottomLevelTriangleAS(){

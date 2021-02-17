@@ -69,9 +69,8 @@ private:
 
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
-    BottomLevelAS* sponza;
-    BottomLevelAS* rossi;
-    BottomLevelAS* singleSphere;
+
+    std::vector<BottomLevelAS*> BLAS;
 
     Camera cam;
 
@@ -104,17 +103,26 @@ private:
 
         getExtensionFunctionPointers();
         createStorageImage();
-        sponza = new BottomLevelTriangleAS(m_device, "sponza");
-        sponza->uploadData("/sponza/sponza.obj");
-        sponza->create();
 
-        rossi = new BottomLevelTriangleAS(m_device, "rossi");
+        BottomLevelTriangleAS* sibenik = new BottomLevelTriangleAS(m_device, "sibenik");
+        sibenik->uploadData("/sibenik/sibenik.obj");
+        sibenik->create();
+        BLAS.push_back(sibenik);
+
+        BottomLevelTriangleAS* rossi = new BottomLevelTriangleAS(m_device, "rossi");
         rossi->uploadData("/rossi/MCRN_Tachi.obj");
         rossi->create();
+        BLAS.push_back(rossi);
 
-        singleSphere = new BottomLevelSphereAS(m_device, "sphere");
+        BottomLevelSphereAS* singleSphere = new BottomLevelSphereAS(m_device, "sphere0");
         singleSphere->createSpheres();
         singleSphere->create();
+        BLAS.push_back(singleSphere);
+
+        BottomLevelSphereAS* singleSphere1 = new BottomLevelSphereAS(m_device, "sphere1");
+        singleSphere1->createSpheres();
+        singleSphere1->create();
+        BLAS.push_back(singleSphere1);
 
         createTopLevelAccelerationStructure();
         createUniformBuffer();
@@ -195,15 +203,15 @@ private:
 
         //-----
     
-        for(Texture texture : BottomLevelAS::m_textures){
-            texture.destroy();
+        BottomLevelAS::destroyTextures();
+        BottomLevelAS::destroyMaterials();
+
+
+        for(BottomLevelAS* blas : BLAS){
+            blas->destroy();
+            delete blas;
         }
 
-        rossi->destroy();
-        sponza->destroy();
-        singleSphere->destroy();
-
-        BottomLevelAS::m_materialBuffer.destroy();
 
         topLevelAccelerationStructure.buffer.destroy();
         vkDestroyAccelerationStructureKHR(m_device->getHandle(), topLevelAccelerationStructure.accelerationStructure, nullptr);
@@ -325,57 +333,68 @@ private:
     }
 
     void createTopLevelAccelerationStructure(){
-        auto materialBufferSize = BottomLevelAS::m_materials.size() * sizeof(Material);
+        BottomLevelAS::createMaterialBuffer(m_device);
 
-        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        BottomLevelAS::m_materialBuffer = Buffer(m_device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
-        BottomLevelAS::m_materialBuffer.map(materialBufferSize, 0);
-        BottomLevelAS::m_materialBuffer.copyTo(BottomLevelAS::m_materials.data(), materialBufferSize);
-        BottomLevelAS::m_materialBuffer.unmap();
-
+        // VkTransformMatrixKHR transformMatrix0 = {
+        //     1.0f, 0.0f, 0.0f, 0.0f,
+        //     0.0f, 1.0f, 0.0f, -1.55f,
+        //     0.0f, 0.0f, 1.0f, 0.0f
+        // };
         VkTransformMatrixKHR transformMatrix0 = {
             1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, -1.55f,
+            0.0f, 1.0f, 0.0f, 1.55f,
             0.0f, 0.0f, 1.0f, 0.0f
         };
         VkTransformMatrixKHR transformMatrix1 = {
             0.2f, 0.0f, 0.0f, -3.0f,
             0.0f, 0.2f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.2f, 0.0f
+            0.0f, 0.0f, 0.2f, 0.5f
         };
         VkTransformMatrixKHR transformMatrix3 = {
             0.0f, -1.0f, 0.0f, 0.f,
             1.0f, 0.0f, 0.0f, 0.f,
-            0.0f, 0.0f, 1.0f, 0.f
+            0.0f, 0.0f, 1.0f, -0.6f
+        };
+        VkTransformMatrixKHR transformMatrix4 = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.6f
         };
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
         accelerationStructureInstance0.transform                              = transformMatrix0;
-        accelerationStructureInstance0.instanceCustomIndex                    = sponza->getId();
+        accelerationStructureInstance0.instanceCustomIndex                    = BLAS[0]->getId();
         accelerationStructureInstance0.mask                                   = 0xFF;
         accelerationStructureInstance0.instanceShaderBindingTableRecordOffset = 0;
         accelerationStructureInstance0.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance0.accelerationStructureReference         = sponza->getDeviceAdress();
+        accelerationStructureInstance0.accelerationStructureReference         = BLAS[0]->getDeviceAdress();
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
         accelerationStructureInstance1.transform                              = transformMatrix1;
-        accelerationStructureInstance1.instanceCustomIndex                    = rossi->getId();
+        accelerationStructureInstance1.instanceCustomIndex                    = BLAS[1]->getId();
         accelerationStructureInstance1.mask                                   = 0xFF;
         accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
         accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance1.accelerationStructureReference         = rossi->getDeviceAdress();
+        accelerationStructureInstance1.accelerationStructureReference         = BLAS[1]->getDeviceAdress();
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
         accelerationStructureInstance3.transform                              = transformMatrix3;
-        accelerationStructureInstance3.instanceCustomIndex                    = singleSphere->getId();
+        accelerationStructureInstance3.instanceCustomIndex                    = BLAS[2]->getId();
         accelerationStructureInstance3.mask                                   = 0xFF;
         accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
         accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance3.accelerationStructureReference         = singleSphere->getDeviceAdress();
+        accelerationStructureInstance3.accelerationStructureReference         = BLAS[2]->getDeviceAdress();
+
+        VkAccelerationStructureInstanceKHR accelerationStructureInstance4{};
+        accelerationStructureInstance4.transform                              = transformMatrix4;
+        accelerationStructureInstance4.instanceCustomIndex                    = BLAS[3]->getId();
+        accelerationStructureInstance4.mask                                   = 0xFF;
+        accelerationStructureInstance4.instanceShaderBindingTableRecordOffset = 1;
+        accelerationStructureInstance4.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        accelerationStructureInstance4.accelerationStructureReference         = BLAS[3]->getDeviceAdress();
 
 
-        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance3};
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance3, accelerationStructureInstance4};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
         Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        instancesBuffer.map(geometryInstancesSize, 0);
@@ -470,7 +489,7 @@ private:
         cam.update();
         ubo.view = cam.getView();
         ubo.proj = glm::inverse(ubo.proj);
-        ubo.light = glm::vec4(glm::vec3(-1.f, 5.0f, 1.f) * camRotation, 1.0f);
+        ubo.light = glm::vec4(glm::vec3(-1.f, 1.0f, 1.f) * camRotation, 1.0f);
 
         uniformBuffer->map(sizeof(ubo), 0);
         uniformBuffer->copyTo(&ubo, sizeof(ubo));
@@ -488,7 +507,7 @@ private:
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(BottomLevelAS::m_textures.size())}
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BottomLevelAS::getTextureCount()}
         };
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -541,18 +560,14 @@ private:
         uniformBufferWrite.descriptorCount = 1;
         uniformBufferWrite.pBufferInfo = &uniformBufferDescriptor;
 
-        std::vector<VkDescriptorBufferInfo> descriptorVertexBufferInfos = {sponza->getVertexBufferDescriptor(), rossi->getVertexBufferDescriptor()};
-
         VkWriteDescriptorSet vertexBufferWrite{};
         vertexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         vertexBufferWrite.dstSet = descriptorSet;
         vertexBufferWrite.dstBinding = 3;
         vertexBufferWrite.dstArrayElement = 0;
         vertexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        vertexBufferWrite.descriptorCount = 2;
-        vertexBufferWrite.pBufferInfo = descriptorVertexBufferInfos.data();
-
-        std::vector<VkDescriptorBufferInfo>	descriptorIndexBufferInfos = {sponza->getIndexBufferDescriptor(), rossi->getIndexBufferDescriptor()};
+        vertexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
+        vertexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getVertexBufferDescriptors();
 
         VkWriteDescriptorSet indexBufferWrite{};
         indexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -560,25 +575,17 @@ private:
         indexBufferWrite.dstBinding = 4;
         indexBufferWrite.dstArrayElement = 0;
         indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        indexBufferWrite.descriptorCount = 2;
-        indexBufferWrite.pBufferInfo = descriptorIndexBufferInfos.data();
+        indexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
+        indexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getIndexBufferDescriptors();
         
-        std::vector<VkDescriptorImageInfo>	descriptorImageInfos(BottomLevelAS::m_textures.size());
-        for (size_t i = 0; i < BottomLevelAS::m_textures.size(); i++)
-        {
-            descriptorImageInfos[i] = BottomLevelAS::m_textures[i].getDescriptorInfo();
-        }
-
         VkWriteDescriptorSet textureImageWrite{};
         textureImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         textureImageWrite.dstSet = descriptorSet;
         textureImageWrite.dstBinding = 5;
         textureImageWrite.dstArrayElement = 0;
         textureImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        textureImageWrite.descriptorCount = static_cast<uint32_t>(BottomLevelAS::m_textures.size());
-        textureImageWrite.pImageInfo = descriptorImageInfos.data();
-
-        VkDescriptorBufferInfo sphereBufferDescriptor = singleSphere->getSphereBufferDescriptor();
+        textureImageWrite.descriptorCount = BottomLevelAS::getTextureCount();
+        textureImageWrite.pImageInfo = BottomLevelAS::getTextureDescriptors();
 
         VkWriteDescriptorSet sphereBufferWrite{};
         sphereBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -586,10 +593,9 @@ private:
         sphereBufferWrite.dstBinding = 6;
         sphereBufferWrite.dstArrayElement = 0;
         sphereBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        sphereBufferWrite.descriptorCount = 1;
-        sphereBufferWrite.pBufferInfo = &sphereBufferDescriptor;
+        sphereBufferWrite.descriptorCount = BottomLevelSphereAS::getCount();
+        sphereBufferWrite.pBufferInfo = BottomLevelSphereAS::getSphereBufferDescriptors();
 
-        VkDescriptorBufferInfo materialBufferDescriptor = BottomLevelAS::m_materialBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
 
         VkWriteDescriptorSet materialBufferWrite{};
         materialBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -598,7 +604,7 @@ private:
         materialBufferWrite.dstArrayElement = 0;
         materialBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         materialBufferWrite.descriptorCount = 1;
-        materialBufferWrite.pBufferInfo = &materialBufferDescriptor;
+        materialBufferWrite.pBufferInfo = BottomLevelAS::getMaterialBufferDescriptor();
 
         std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
             accelerationStructureWrite,
@@ -677,26 +683,26 @@ private:
         VkDescriptorSetLayoutBinding vertex_buffer_binding{};
         vertex_buffer_binding.binding         = 3;
         vertex_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        vertex_buffer_binding.descriptorCount = 2;
+        vertex_buffer_binding.descriptorCount = BottomLevelTriangleAS::getCount();
         vertex_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding index_buffer_binding{};
         index_buffer_binding.binding         = 4;
         index_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        index_buffer_binding.descriptorCount = 2;
+        index_buffer_binding.descriptorCount = BottomLevelTriangleAS::getCount();
         index_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
         samplerLayoutBinding.binding = 5;
         samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.descriptorCount = static_cast<uint32_t>(BottomLevelAS::m_textures.size());
+        samplerLayoutBinding.descriptorCount = BottomLevelAS::getTextureCount();
         samplerLayoutBinding.pImmutableSamplers = nullptr;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding sphere_buffer_binding{};
         sphere_buffer_binding.binding         = 6;
         sphere_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        sphere_buffer_binding.descriptorCount = 1;
+        sphere_buffer_binding.descriptorCount = BottomLevelSphereAS::getCount();
         sphere_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
         VkDescriptorSetLayoutBinding material_buffer_binding{};

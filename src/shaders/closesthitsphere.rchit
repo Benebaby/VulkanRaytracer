@@ -43,13 +43,13 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform UBO {mat4 inverseView; mat4 inverseProj; vec4 light;} ubo;
 layout(binding = 5, set = 0) uniform sampler2D texSampler[];
-layout(binding = 6, set = 0) buffer Spheres { Sphere s[]; } spheres;
+layout(binding = 6, set = 0) buffer Spheres { Sphere s[]; } spheres[];
 layout(binding = 7, set = 0) buffer Materials { Material m[]; } materials;
 
 
 void main()
 {
-  Sphere sphere = spheres.s[gl_PrimitiveID];
+  Sphere sphere = spheres[gl_InstanceCustomIndexEXT].s[gl_PrimitiveID];
   sphere.center = (gl_ObjectToWorldEXT * vec4(sphere.center, 1.0)).xyz;
 
   vec3 position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;

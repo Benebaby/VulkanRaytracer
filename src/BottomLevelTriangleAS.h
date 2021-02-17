@@ -6,17 +6,19 @@ private:
     static uint32_t m_count;
     Buffer m_vertexBuffer;
     Buffer m_indexBuffer;
+    Buffer m_transformBuffer;
     std::vector<Vertex> m_vertices;
     std::vector<uint32_t> m_indices;
-    Buffer m_transformBuffer;
+    static std::vector<VkDescriptorBufferInfo> m_vertexBufferDescriptors;
+    static std::vector<VkDescriptorBufferInfo> m_indexBufferDescriptors;
 public:
+    static VkDescriptorBufferInfo* getVertexBufferDescriptors();
+    static VkDescriptorBufferInfo* getIndexBufferDescriptors();
+    static uint32_t getCount();
+
     BottomLevelTriangleAS(Device* device, std::string name);
 
-    void uploadData(std::string path) override;
-
-    VkDescriptorBufferInfo getVertexBufferDescriptor() override;
-
-    VkDescriptorBufferInfo getIndexBufferDescriptor() override;
+    void uploadData(std::string path);
 
     void create() override;
 

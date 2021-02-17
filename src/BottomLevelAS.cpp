@@ -5,6 +5,8 @@
 std::vector<Material> BottomLevelAS::m_materials = std::vector<Material>(0);
 std::vector<Texture> BottomLevelAS::m_textures = std::vector<Texture>(0);
 Buffer BottomLevelAS::m_materialBuffer;
+std::vector<VkDescriptorImageInfo> BottomLevelAS::m_textureDescriptors(0);
+VkDescriptorBufferInfo BottomLevelAS::m_materialBufferDescriptor;
 
 BottomLevelAS::BottomLevelAS(Device* device, std::string name, uint32_t id) : m_device(device), m_name(name), m_id(id) {
     vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkCmdBuildAccelerationStructuresKHR"));
@@ -15,33 +17,51 @@ BottomLevelAS::BottomLevelAS(Device* device, std::string name, uint32_t id) : m_
     vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(m_device->getHandle(), "vkDestroyAccelerationStructureKHR"));
 }
 
-void BottomLevelAS::uploadData(std::string path){
-
-}
-
-VkDescriptorBufferInfo BottomLevelAS::getIndexBufferDescriptor(){
-    VkDescriptorBufferInfo pad{};
-    return pad;
-}
-
-VkDescriptorBufferInfo BottomLevelAS::getVertexBufferDescriptor(){
-    VkDescriptorBufferInfo pad{};
-    return pad;
-}
-
-VkDescriptorBufferInfo BottomLevelAS::getSphereBufferDescriptor(){
-    VkDescriptorBufferInfo pad{};
-    return pad;
-}
-
-void BottomLevelAS::createSpheres(){}
-
 uint32_t BottomLevelAS::getId() const{
     return m_id;
 }
 
 VkDeviceAddress BottomLevelAS::getDeviceAdress() const{
     return m_deviceAddress;
+}
+
+void BottomLevelAS::createMaterialBuffer(Device* device){
+    auto materialBufferSize = m_materials.size() * sizeof(Material);
+    const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    m_materialBuffer = Buffer(device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
+    m_materialBuffer.map(materialBufferSize, 0);
+    m_materialBuffer.copyTo(m_materials.data(), materialBufferSize);
+    m_materialBuffer.unmap();
+}
+
+VkDescriptorBufferInfo* BottomLevelAS::getMaterialBufferDescriptor(){
+    m_materialBufferDescriptor = m_materialBuffer.getDescriptorInfo(VK_WHOLE_SIZE, 0);
+    return &m_materialBufferDescriptor; 
+}
+
+VkDescriptorImageInfo* BottomLevelAS::getTextureDescriptors(){
+    std::vector<VkDescriptorImageInfo>	descriptorImageInfos(m_textures.size());
+    for (size_t i = 0; i < m_textures.size(); i++)
+    {
+        descriptorImageInfos[i] = m_textures[i].getDescriptorInfo();
+    }
+    m_textureDescriptors = descriptorImageInfos;
+    return m_textureDescriptors.data();
+}
+
+uint32_t BottomLevelAS::getTextureCount(){
+    return static_cast<uint32_t>(m_textures.size());
+}
+
+void BottomLevelAS::destroyTextures(){
+    for(Texture texture : m_textures){
+        texture.destroy();
+    }
+}
+
+void BottomLevelAS::destroyMaterials(){
+    m_materialBuffer.destroy();
 }
 
 VkCommandBuffer BottomLevelAS::createCommandBuffer(VkCommandBufferLevel level, bool begin){

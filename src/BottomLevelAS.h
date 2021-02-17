@@ -17,10 +17,12 @@ protected:
     PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;       
     PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
     PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;  
-public:
     static std::vector<Material> m_materials;
-    static std::vector<Texture> m_textures;
     static Buffer m_materialBuffer;
+    static std::vector<Texture> m_textures;
+    static std::vector<VkDescriptorImageInfo> m_textureDescriptors;
+    static VkDescriptorBufferInfo m_materialBufferDescriptor;
+public:
     Device* m_device;
     std::string m_name;
     uint32_t m_id;
@@ -29,11 +31,12 @@ public:
     VkAccelerationStructureKHR  m_handle = VK_NULL_HANDLE;
     uint32_t getId() const;
     VkDeviceAddress getDeviceAdress() const;
-    virtual void uploadData(std::string path);
-    virtual void createSpheres();
-    virtual VkDescriptorBufferInfo getIndexBufferDescriptor();
-    virtual VkDescriptorBufferInfo getVertexBufferDescriptor();
-    virtual VkDescriptorBufferInfo getSphereBufferDescriptor();
+    static void createMaterialBuffer(Device* device);
+    static VkDescriptorBufferInfo* getMaterialBufferDescriptor(); 
+    static VkDescriptorImageInfo* getTextureDescriptors(); 
+    static uint32_t getTextureCount();
+    static void destroyTextures();
+    static void destroyMaterials();
     virtual void create() = 0;
     virtual void destroy() = 0;
 };
