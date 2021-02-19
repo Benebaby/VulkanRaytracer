@@ -342,7 +342,7 @@ private:
         // };
         VkTransformMatrixKHR transformMatrix0 = {
             1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 1.55f,
+            0.0f, 1.0f, 0.0f, 10.f,
             0.0f, 0.0f, 1.0f, 0.0f
         };
         VkTransformMatrixKHR transformMatrix1 = {

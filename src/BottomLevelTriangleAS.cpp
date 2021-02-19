@@ -110,13 +110,13 @@ void BottomLevelTriangleAS::uploadData(std::string path){
     uint32_t current_index = 0; 
     bool hasNormals = attrib.normals.size() > 0;
     bool hasUVs = attrib.texcoords.size() > 0;
+    glm::vec3 tempNormal;
 
     for (size_t s = 0; s < shapes.size(); s++) {
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
             int fv = shapes[s].mesh.num_face_vertices[f];
             int matID = shapes[s].mesh.material_ids[f];
-            glm::vec3 normal;
             if(!hasNormals){
                 tinyobj::index_t index = shapes[s].mesh.indices[index_offset];
                 glm::vec3 v0 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
@@ -124,7 +124,7 @@ void BottomLevelTriangleAS::uploadData(std::string path){
                 glm::vec3 v1 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
                 index = shapes[s].mesh.indices[index_offset + 2];
                 glm::vec3 v2 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
-                normal = glm::cross(v1 - v0, v2 - v0);
+                tempNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
             }
             for (size_t v = 0; v < fv; v++) {
                 tinyobj::index_t index = shapes[s].mesh.indices[index_offset + v];
@@ -138,9 +138,9 @@ void BottomLevelTriangleAS::uploadData(std::string path){
                     vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
                     vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
                 }else{
-                    vertex.normal[0] = normal.x;
-                    vertex.normal[1] = normal.y;
-                    vertex.normal[2] = normal.z;
+                    vertex.normal[0] = tempNormal.x;
+                    vertex.normal[1] = tempNormal.y;
+                    vertex.normal[2] = tempNormal.z;
                 }
                 if(hasUVs){
                     vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];

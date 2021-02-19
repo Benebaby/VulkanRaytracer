@@ -61,7 +61,7 @@ void main()
   vec3 normal = normalize(v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z);
   vec2 textureCoord = v0.texture * barycentricCoords.x + v1.texture * barycentricCoords.y + v2.texture * barycentricCoords.z;
   Material material = materials.m[v0.matID];
-  float reflectance = 0.0;
+
   vec3 color = vec3(1.0);
   if(material.diffuseTexId >= 0)
     color = texture(texSampler[material.diffuseTexId], textureCoord).xyz;
@@ -74,18 +74,19 @@ void main()
   else  
     specular = material.specular;
 
-  vec3 ambient = vec3(1.0);
-  if(material.ambientTexId >= 0){
-    if(material.ambient.length() < 0.001)
-      ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * vec3(0.3);
-    else{
-      ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * material.ambient;
-    }
-  }else{
-    ambient = material.ambient;
-    if(material.ambient.length() < 0.001)
-      ambient = vec3(0.3);
-  }  
+  vec3 ambient = 0.2 * color;
+  // if(material.ambientTexId >= 0){
+  //   ambient = texture(texSampler[material.ambientTexId], textureCoord).xyz * material.ambient;
+  //   if(ambient )
+  // }else{
+  //   ambient = material.ambient;
+  //   if(material.ambient.length() < 0.001)
+  //     ambient = vec3(0.3);
+  // }  
+
+  float reflectance = 0.0;
+  if(material.illum == 7)
+    reflectance = 0.3;
 
   Payload.recursion++; 
   
