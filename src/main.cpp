@@ -61,6 +61,9 @@ private:
 	AccelerationStructure topLevelAccelerationStructure;
 
     Buffer* uniformBuffer;
+    Buffer m_lightBuffer;
+    
+    std::vector<Light> lights;
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
     Buffer* raygenShaderBindingTable;
@@ -101,13 +104,23 @@ private:
         
         cam = Camera(Camera::TypeFirstPerson ,m_instance->getWindow(), swapChainExtent.width, swapChainExtent.height, glm::vec3(-7.5f, 1.f, 0.f), glm::vec3(0.0f));
 
+
+        lights.emplace_back(glm::vec3(4.0f, 10.0f, 3.0f),    glm::vec3(1.0f, 1.0f, 1.0f),    0.1f);
+        lights.emplace_back(glm::vec3(0.0f, 4.0f, 4.0f),     glm::vec3(1.0f, 0.09f, 0.032f), glm::vec3(0.6f, 0.6f, 1.0f), 0.1f);
+        lights.emplace_back(glm::vec3(0.0f, 4.0f, -4.0f),    glm::vec3(1.0f, 0.09f, 0.032f), glm::vec3(1.0f, 0.6f, 0.6f), 0.1f);
+        lights.emplace_back(glm::vec3(4.1f, 0.55f, -1.27f),  glm::vec3(1.0f, 0.22f, 0.20f),  glm::vec3(1.0f, 0.5372f, 0.f), 0.1f);
+        lights.emplace_back(glm::vec3(4.1f, 0.55f, 1.38f),   glm::vec3(1.0f, 0.22f, 0.20f),  glm::vec3(1.0f, 0.5372f, 0.f), 0.1f);
+        lights.emplace_back(glm::vec3(-4.1f, 0.55f, -1.27f), glm::vec3(1.0f, 0.22f, 0.20f),  glm::vec3(1.0f, 0.5372f, 0.f), 0.1f);
+        lights.emplace_back(glm::vec3(-4.1f, 0.55f, 1.38f),  glm::vec3(1.0f, 0.22f, 0.20f),  glm::vec3(1.0f, 0.5372f, 0.f), 0.1f);
+
+        createLightBuffer();
         getExtensionFunctionPointers();
         createStorageImage();
 
-        BottomLevelTriangleAS* sibenik = new BottomLevelTriangleAS(m_device, "sibenik");
-        sibenik->uploadData("/sibenik/sibenik.obj");
-        sibenik->create();
-        BLAS.push_back(sibenik);
+        BottomLevelTriangleAS* sponza = new BottomLevelTriangleAS(m_device, "sponza");
+        sponza->uploadData("/sponza/sponza.obj");
+        sponza->create();
+        BLAS.push_back(sponza);
 
         BottomLevelTriangleAS* rossi = new BottomLevelTriangleAS(m_device, "rossi");
         rossi->uploadData("/rossi/MCRN_Tachi.obj");
@@ -194,6 +207,8 @@ private:
         
         uniformBuffer->destroy();
         delete uniformBuffer;
+
+        m_lightBuffer.destroy();
 
 
         storageImage->destroy();
@@ -328,6 +343,16 @@ private:
         return scratchBuffer;
     }
 
+    void createLightBuffer(){
+        auto lightBufferSize = lights.size() * sizeof(Light);
+        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        m_lightBuffer = Buffer(m_device, lightBufferSize, bufferUsageFlags, memoryPropertyFlags);
+        m_lightBuffer.map(lightBufferSize, 0);
+        m_lightBuffer.copyTo(lights.data(), lightBufferSize);
+        m_lightBuffer.unmap();
+    }
+
     void createStorageImage(){
         storageImage = new Texture(m_device, swapChainExtent.width, swapChainExtent.height, VK_FORMAT_B8G8R8A8_UNORM);
     }
@@ -335,14 +360,9 @@ private:
     void createTopLevelAccelerationStructure(){
         BottomLevelAS::createMaterialBuffer(m_device);
 
-        // VkTransformMatrixKHR transformMatrix0 = {
-        //     1.0f, 0.0f, 0.0f, 0.0f,
-        //     0.0f, 1.0f, 0.0f, -1.55f,
-        //     0.0f, 0.0f, 1.0f, 0.0f
-        // };
         VkTransformMatrixKHR transformMatrix0 = {
             1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 10.f,
+            0.0f, 1.0f, 0.0f, -1.55f,
             0.0f, 0.0f, 1.0f, 0.0f
         };
         VkTransformMatrixKHR transformMatrix1 = {
@@ -351,8 +371,8 @@ private:
             0.0f, 0.0f, 0.2f, 0.5f
         };
         VkTransformMatrixKHR transformMatrix3 = {
-            0.0f, -1.0f, 0.0f, 0.f,
-            1.0f, 0.0f, 0.0f, 0.f,
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, -0.6f
         };
         VkTransformMatrixKHR transformMatrix4 = {
@@ -397,7 +417,8 @@ private:
         std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance3, accelerationStructureInstance4};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
-        Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        instancesBuffer.map(geometryInstancesSize, 0);
+        Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        
+        instancesBuffer.map(geometryInstancesSize, 0);
         instancesBuffer.copyTo(geometryInstances.data(), geometryInstancesSize);
         instancesBuffer.unmap();
 
@@ -478,7 +499,7 @@ private:
         UniformBufferObject ubo{};
         glm::mat3 camRotation = glm::mat3(glm::rotate(glm::mat4(1.0f), (time/5) * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         // sponza 
-        //ubo.view = glm::lookAt(glm::vec3(-7.5f, 2.f, 0.f), glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.view = glm::lookAt(glm::vec3(-7.5f, 2.f, 0.f), glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // viking_room
         // ubo.view = glm::lookAt(glm::vec3(-1.5, 1.1, 1.5), glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         // dragon
@@ -489,11 +510,19 @@ private:
         cam.update();
         ubo.view = cam.getView();
         ubo.proj = glm::inverse(ubo.proj);
-        ubo.light = glm::vec4(glm::vec3(-1.f, 1.0f, 1.f) * camRotation, 1.0f);
 
         uniformBuffer->map(sizeof(ubo), 0);
         uniformBuffer->copyTo(&ubo, sizeof(ubo));
         uniformBuffer->unmap();
+
+        Light l = lights[0];
+        glm::vec3 lightpos = glm::vec3(l.m_pos[0], l.m_pos[1], l.m_pos[2]);
+        lightpos = camRotation * lightpos;
+        l.m_pos[0] = lightpos.x; l.m_pos[1] = lightpos.y; l.m_pos[2] = lightpos.z;
+
+        m_lightBuffer.map(sizeof(Light), 0);
+        m_lightBuffer.copyTo(&l, sizeof(Light));
+        m_lightBuffer.unmap();
     }
 
     void createUniformBuffer(){
@@ -506,7 +535,7 @@ private:
             {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BottomLevelAS::getTextureCount()}
         };
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
@@ -606,6 +635,16 @@ private:
         materialBufferWrite.descriptorCount = 1;
         materialBufferWrite.pBufferInfo = BottomLevelAS::getMaterialBufferDescriptor();
 
+        VkDescriptorBufferInfo lightBufferDescriptor = m_lightBuffer.getDescriptorInfo(lights.size() * sizeof(Light), 0);
+        VkWriteDescriptorSet lightBufferWrite{};
+        lightBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        lightBufferWrite.dstSet = descriptorSet;
+        lightBufferWrite.dstBinding = 8;
+        lightBufferWrite.dstArrayElement = 0;
+        lightBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightBufferWrite.descriptorCount = 1;
+        lightBufferWrite.pBufferInfo = &lightBufferDescriptor;
+
         std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
             accelerationStructureWrite,
 	        resultImageWrite,
@@ -614,7 +653,8 @@ private:
             indexBufferWrite,
             textureImageWrite,
             sphereBufferWrite,
-            materialBufferWrite
+            materialBufferWrite,
+            lightBufferWrite
         };
 
         vkUpdateDescriptorSets(m_device->getHandle(), static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -678,7 +718,7 @@ private:
         uniform_buffer_binding.binding         = 2;
         uniform_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uniform_buffer_binding.descriptorCount = 1;
-        uniform_buffer_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
+        uniform_buffer_binding.stageFlags      = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
         VkDescriptorSetLayoutBinding vertex_buffer_binding{};
         vertex_buffer_binding.binding         = 3;
@@ -711,6 +751,12 @@ private:
         material_buffer_binding.descriptorCount = 1;
         material_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 
+        VkDescriptorSetLayoutBinding light_buffer_binding{};
+        light_buffer_binding.binding         = 8;
+        light_buffer_binding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        light_buffer_binding.descriptorCount = 1;
+        light_buffer_binding.stageFlags      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             acceleration_structure_layout_binding,
             result_image_layout_binding,
@@ -719,7 +765,8 @@ private:
             index_buffer_binding,
             samplerLayoutBinding,
             sphere_buffer_binding,
-            material_buffer_binding
+            material_buffer_binding,
+            light_buffer_binding
         };
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};

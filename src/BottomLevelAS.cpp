@@ -27,7 +27,7 @@ VkDeviceAddress BottomLevelAS::getDeviceAdress() const{
 
 void BottomLevelAS::createMaterialBuffer(Device* device){
     auto materialBufferSize = m_materials.size() * sizeof(Material);
-    const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     m_materialBuffer = Buffer(device, materialBufferSize, bufferUsageFlags, memoryPropertyFlags);
     m_materialBuffer.map(materialBufferSize, 0);

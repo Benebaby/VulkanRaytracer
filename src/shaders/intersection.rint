@@ -48,7 +48,8 @@ void main()
     ray.direction = gl_WorldRayDirectionEXT;
 
     Sphere sphere = spheres[gl_InstanceCustomIndexEXT].s[gl_PrimitiveID];
-    sphere.center = (gl_ObjectToWorldEXT * vec4(sphere.center, 1.0)).xyz;
+    sphere.center = sphere.center + gl_ObjectToWorldEXT[3];
+    sphere.radius = max(gl_ObjectToWorldEXT[0][0], max(gl_ObjectToWorldEXT[1][1], gl_ObjectToWorldEXT[2][2])) * sphere.radius;
 
     float tHit = -1;
     tHit = hitSphere(sphere, ray);

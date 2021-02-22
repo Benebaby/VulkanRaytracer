@@ -39,7 +39,6 @@ struct ScratchBuffer
 struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
-    glm::vec4 light;
 };
 
 struct Vertex
@@ -61,6 +60,38 @@ struct Sphere
     float radius;
     int matID;
     float pad1[3];
+};
+
+struct Light
+{
+    Light(glm::vec3 pos, glm::vec3 color, float ambientIntensity){
+        m_pos[0] = pos.x;
+        m_pos[1] = pos.y;
+        m_pos[2] = pos.z;
+        m_pos[3] = 0.f;
+        m_color[0] = color.x;
+        m_color[1] = color.y;
+        m_color[2] = color.z;
+        m_ambientIntensity = ambientIntensity;
+    }
+    Light(glm::vec3 pos, glm::vec3 attenuation, glm::vec3 color, float ambientIntensity){
+        m_pos[0] = pos.x;
+        m_pos[1] = pos.y;
+        m_pos[2] = pos.z;
+        m_pos[3] = 1.f;
+        m_attenuation[0] = attenuation.x;
+        m_attenuation[1] = attenuation.y;
+        m_attenuation[2] = attenuation.z;
+        m_color[0] = color.x;
+        m_color[1] = color.y;
+        m_color[2] = color.z;
+        m_ambientIntensity = ambientIntensity;
+    }
+    float m_pos[4];
+    float m_attenuation[3];
+    float m_ambientIntensity;
+    float m_color[3];
+    float pad;
 };
 
 struct Material

@@ -12,5 +12,5 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 void main()
 {
-    Payload.color += (Payload.weight) * vec3(0.0);
+    Payload.color += (Payload.weight) * vec3(0.5255, 0.8745, 1.0);
 }
