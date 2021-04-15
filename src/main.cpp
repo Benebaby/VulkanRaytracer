@@ -78,10 +78,15 @@ private:
     Camera cam;
 
     void initVulkan() {
+
+        //Instanz mit den Parameter Name, Auflösung, API  Version und Validation flag
         m_instance = new Instance("Vulkan Raytracing", 1600, 900, VK_API_VERSION_1_2, true);
+        //Instanz Erweiterung
         m_instance->addExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-        m_instance->addLayer("VK_LAYER_KHRONOS_validation");
-        m_instance->addLayer("VK_LAYER_LUNARG_monitor");
+        //Validation Layers
+        m_instance->addLayer("VK_LAYER_KHRONOS_validation"); //Standard Validation
+        m_instance->addLayer("VK_LAYER_LUNARG_monitor"); // FPS Zähler in Fensterkopf
+        //Erstellen der VkInstance und VkSurface
         m_instance->create();
         m_instance->createSurface();
         
@@ -911,7 +916,7 @@ private:
 
     void createShaderBindingTables(){
         const uint32_t handleSize = m_device->getShaderGroupHandleSize();
-		const uint32_t handleSizeAligned = alignedSize(m_device->getShaderGroupHandleSize(), m_device-> getShaderGroupHandleAlignment());
+		const uint32_t handleSizeAligned = alignedSize(handleSize, m_device->getShaderGroupHandleAlignment());
 		const uint32_t groupCount = static_cast<uint32_t>(shaderGroups.size());
 		const uint32_t sbtSize = groupCount * handleSizeAligned;
 

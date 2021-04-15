@@ -70,21 +70,22 @@ void Device::createLogicalDevice() {
 
     VkPhysicalDeviceFeatures2 deviceFeatures2{};
     deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    //anisotropische Texturfilterung
     deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     deviceFeatures2.pNext = &m_enabledAccelerationStructureFeatures;
-    
+    //Beschleunigungsstruktur Features
     m_enabledAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     m_enabledAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
     m_enabledAccelerationStructureFeatures.pNext = &m_enabledRayTracingPipelineFeatures;
-
+    //Raytracing Pipline Features
     m_enabledRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     m_enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
     m_enabledRayTracingPipelineFeatures.pNext = &m_enabledBufferDeviceAddressFeatures;
-
+    //Zum Erstellen von 64bit Pointern auf verschiedene Vulkan Objekte
     m_enabledBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     m_enabledBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
     m_enabledBufferDeviceAddressFeatures.pNext = &m_enabledDescriptorIndexingFeatures;
-
+    //Um die Länge von UniformBuffer Arrays nicht sperat in Shader übergeben zu müssen
     m_enabledDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     m_enabledDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
 
@@ -102,11 +103,9 @@ void Device::createLogicalDevice() {
     } else {
         createInfo.enabledLayerCount = 0;
     }
-
     if (vkCreateDevice(m_physical_device, &createInfo, nullptr, &m_handle) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
-
     vkGetDeviceQueue(m_handle, indices.graphicsFamily.value(), 0, &m_graphics_queue);
     vkGetDeviceQueue(m_handle, indices.presentFamily.value(), 0, &m_present_queue);
 }
