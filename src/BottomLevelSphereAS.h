@@ -15,7 +15,9 @@ public:
 
     BottomLevelSphereAS(Device* device, std::string name);
 
-    void createSpheres();
+    void createSphere(Sphere &sphere, tinyobj::material_t &material_in);
+
+    void createSpheres(std::vector<Sphere> &spheres, tinyobj::material_t &material_in);
 
     void create() override;
 

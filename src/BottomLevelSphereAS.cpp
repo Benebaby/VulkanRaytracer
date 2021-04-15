@@ -11,42 +11,140 @@ VkDescriptorBufferInfo* BottomLevelSphereAS::getSphereBufferDescriptors(){
     return m_sphereBufferDescriptors.data();
 }
 
-void BottomLevelSphereAS::createSpheres(){
+void BottomLevelSphereAS::createSphere(Sphere &sphere, tinyobj::material_t &material_in){
     uint32_t materialOffset = static_cast<uint32_t>(m_materials.size());
+
     Material material{};
-    material.ambient[0] = 1.0f;         material.ambient[1] = 1.0f;         material.ambient[2] = 1.0f;
-    material.diffuse[0] = 1.0f;         material.diffuse[1] = 0.0f;         material.diffuse[2] = 1.0f;
-    material.specular[0] = 1.0f;        material.specular[1] = 1.0f;        material.specular[2] = 1.0f;
-    material.transmittance[0] = 0.0f;   material.transmittance[1] = 0.0f;   material.transmittance[2] = 0.0f;
-    material.emission[0] = 0.0f;        material.emission[1] = 0.0f;        material.emission[2] = 0.0f;
-    material.shininess = 100.0f; 
-    material.ior = 1.0f;                  // index of refraction
-    material.dissolve = 1.0f;             // 1 == opaque; 0 == fully transparent
-    material.illum = 2;                   // Beleuchtungsmodell
-    material.ambientTexId = -1;
-    m_textures.push_back(Texture(m_device, "/checker.png", VK_FORMAT_R8G8B8A8_SRGB));
-    material.diffuseTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Kd
-    material.specularTexId = -1;
-    material.specularHighlightTexId = -1;
-    material.bumpTexId = -1;
-    material.displacementTexId = -1;
-    material.alphaTexId = -1;
-    material.reflectionTexId = -1;
+    material.ambient[0] = material_in.ambient[0];               material.ambient[1] = material_in.ambient[1];               material.ambient[2] = material_in.ambient[2];
+    material.diffuse[0] = material_in.diffuse[0];               material.diffuse[1] = material_in.diffuse[1];               material.diffuse[2] = material_in.diffuse[2];
+    material.specular[0] = material_in.specular[0];             material.specular[1] = material_in.specular[1];             material.specular[2] = material_in.specular[2];
+    material.transmittance[0] = material_in.transmittance[0];   material.transmittance[1] = material_in.transmittance[1];   material.transmittance[2] = material_in.transmittance[2];
+    material.emission[0] = material_in.emission[0];             material.emission[1] = material_in.emission[1];             material.emission[2] = material_in.emission[2];
+    material.shininess = material_in.shininess;
+    material.ior = material_in.ior;                     // index of refraction
+    material.dissolve = material_in.dissolve;                // 1 == opaque; 0 == fully transparent
+    material.illum = material_in.illum;                   // Beleuchtungsmodell
+    if(material_in.ambient_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.ambient_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.ambientTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ka
+    }else{
+        material.ambientTexId = -1;
+    }
+    if(material_in.diffuse_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.diffuse_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.diffuseTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Kd
+    }else{
+        material.diffuseTexId = -1;
+    }
+    if(material_in.specular_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.specular_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ks
+    }else{
+        material.specularTexId = -1;
+    }
+    if(material_in.specular_highlight_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.specular_highlight_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularHighlightTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ns
+    }else{
+        material.specularHighlightTexId = -1;
+    }
+    if(material_in.bump_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.bump_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.bumpTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_bump, map_Bump, bump
+    }else{
+        material.bumpTexId = -1;
+    }
+    if(material_in.displacement_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.displacement_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.displacementTexId = static_cast<uint32_t>(m_textures.size() - 1);            // disp
+    }else{
+        material.displacementTexId = -1;
+    }
+    if(material_in.alpha_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.alpha_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.alphaTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_d
+    }else{
+        material.alphaTexId = -1;
+    }
+    if(material_in.reflection_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.reflection_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.reflectionTexId = static_cast<uint32_t>(m_textures.size() - 1);            // refl
+    }else{
+        material.reflectionTexId = -1;
+    }
     m_materials.push_back(material);
 
-    Sphere sphere;
-    sphere.matID = materialOffset + 0;
-    sphere.center[0] = 0.f; 
-    sphere.center[1] = 0.f; 
-    sphere.center[2] = 0.f;
-    sphere.radius = 0.5f;
-    sphere.aabbmin[0] = sphere.center[0] - sphere.radius; 
-    sphere.aabbmin[1] = sphere.center[1] - sphere.radius; 
-    sphere.aabbmin[2] = sphere.center[2] - sphere.radius;
-    sphere.aabbmax[0] = sphere.center[0] + sphere.radius; 
-    sphere.aabbmax[1] = sphere.center[1] + sphere.radius; 
-    sphere.aabbmax[2] = sphere.center[2] + sphere.radius;
+    sphere.matID = materialOffset;
     m_spheres.push_back(sphere);
+}
+
+void BottomLevelSphereAS::createSpheres(std::vector<Sphere> &spheres, tinyobj::material_t &material_in){
+    uint32_t materialOffset = static_cast<uint32_t>(m_materials.size());
+
+    Material material{};
+    material.ambient[0] = material_in.ambient[0];               material.ambient[1] = material_in.ambient[1];               material.ambient[2] = material_in.ambient[2];
+    material.diffuse[0] = material_in.diffuse[0];               material.diffuse[1] = material_in.diffuse[1];               material.diffuse[2] = material_in.diffuse[2];
+    material.specular[0] = material_in.specular[0];             material.specular[1] = material_in.specular[1];             material.specular[2] = material_in.specular[2];
+    material.transmittance[0] = material_in.transmittance[0];   material.transmittance[1] = material_in.transmittance[1];   material.transmittance[2] = material_in.transmittance[2];
+    material.emission[0] = material_in.emission[0];             material.emission[1] = material_in.emission[1];             material.emission[2] = material_in.emission[2];
+    material.shininess = material_in.shininess;
+    material.ior = material_in.ior;                     // index of refraction
+    material.dissolve = material_in.dissolve;                // 1 == opaque; 0 == fully transparent
+    material.illum = material_in.illum;                   // Beleuchtungsmodell
+    if(material_in.ambient_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.ambient_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.ambientTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ka
+    }else{
+        material.ambientTexId = -1;
+    }
+    if(material_in.diffuse_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.diffuse_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.diffuseTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Kd
+    }else{
+        material.diffuseTexId = -1;
+    }
+    if(material_in.specular_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.specular_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ks
+    }else{
+        material.specularTexId = -1;
+    }
+    if(material_in.specular_highlight_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.specular_highlight_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularHighlightTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ns
+    }else{
+        material.specularHighlightTexId = -1;
+    }
+    if(material_in.bump_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.bump_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.bumpTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_bump, map_Bump, bump
+    }else{
+        material.bumpTexId = -1;
+    }
+    if(material_in.displacement_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.displacement_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.displacementTexId = static_cast<uint32_t>(m_textures.size() - 1);            // disp
+    }else{
+        material.displacementTexId = -1;
+    }
+    if(material_in.alpha_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.alpha_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.alphaTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_d
+    }else{
+        material.alphaTexId = -1;
+    }
+    if(material_in.reflection_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.reflection_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.reflectionTexId = static_cast<uint32_t>(m_textures.size() - 1);            // refl
+    }else{
+        material.reflectionTexId = -1;
+    }
+    m_materials.push_back(material);
+
+    for(Sphere sphere : spheres){
+        sphere.matID = materialOffset;
+        m_spheres.push_back(sphere);
+    }
 }
 
 uint32_t BottomLevelSphereAS::getCount(){

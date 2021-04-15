@@ -10,6 +10,7 @@
 #include "Camera.h"
 #include "BottomLevelTriangleAS.h"
 #include "BottomLevelSphereAS.h"
+#include "SphereFlake.h"
 
 struct AccelerationStructure
 {
@@ -133,12 +134,81 @@ private:
         BLAS.push_back(rossi);
 
         BottomLevelSphereAS* singleSphere = new BottomLevelSphereAS(m_device, "sphere0");
-        singleSphere->createSpheres();
+
+        tinyobj::material_t material01{};
+        material01.ambient[0] = 1.0f;         material01.ambient[1] = 1.0f;         material01.ambient[2] = 1.0f;
+        material01.diffuse[0] = 1.0f;         material01.diffuse[1] = 0.0f;         material01.diffuse[2] = 1.0f;
+        material01.specular[0] = 1.0f;        material01.specular[1] = 1.0f;        material01.specular[2] = 1.0f;
+        material01.transmittance[0] = 0.0f;   material01.transmittance[1] = 0.0f;   material01.transmittance[2] = 0.0f;
+        material01.emission[0] = 0.0f;        material01.emission[1] = 0.0f;        material01.emission[2] = 0.0f;
+        material01.shininess = 100.0f; 
+        material01.ior = 1.0f;
+        material01.dissolve = 1.0f;
+        material01.illum = 2;
+        material01.ambient_texname = "";
+        material01.diffuse_texname = "/checker.png";
+        material01.specular_texname = "";
+        material01.specular_highlight_texname = "";
+        material01.bump_texname = "";
+        material01.displacement_texname = "";
+        material01.alpha_texname = "";
+        material01.reflection_texname = "";
+
+        std::vector<Sphere> sphereFractal(0);
+        Sphere sphere01;
+        sphere01.matID = 0;
+        sphere01.center[0] = 0.f; 
+        sphere01.center[1] = 0.f; 
+        sphere01.center[2] = 0.f;
+        sphere01.radius = 0.5f;
+        sphere01.aabbmin[0] = sphere01.center[0] - sphere01.radius; 
+        sphere01.aabbmin[1] = sphere01.center[1] - sphere01.radius; 
+        sphere01.aabbmin[2] = sphere01.center[2] - sphere01.radius;
+        sphere01.aabbmax[0] = sphere01.center[0] + sphere01.radius; 
+        sphere01.aabbmax[1] = sphere01.center[1] + sphere01.radius; 
+        sphere01.aabbmax[2] = sphere01.center[2] + sphere01.radius;
+        sphereFractal.push_back(sphere01);
+        Sphere sphere02;
+        sphere02.matID = 0;
+        sphere02.center[0] = 0.f; 
+        sphere02.center[1] = 1.f; 
+        sphere02.center[2] = 0.f;
+        sphere02.radius = 0.5f;
+        sphere02.aabbmin[0] = sphere02.center[0] - sphere02.radius; 
+        sphere02.aabbmin[1] = sphere02.center[1] - sphere02.radius; 
+        sphere02.aabbmin[2] = sphere02.center[2] - sphere02.radius;
+        sphere02.aabbmax[0] = sphere02.center[0] + sphere02.radius; 
+        sphere02.aabbmax[1] = sphere02.center[1] + sphere02.radius; 
+        sphere02.aabbmax[2] = sphere02.center[2] + sphere02.radius;
+        sphereFractal.push_back(sphere02);
+
+        singleSphere->createSpheres(sphereFractal, material01);
         singleSphere->create();
         BLAS.push_back(singleSphere);
 
         BottomLevelSphereAS* singleSphere1 = new BottomLevelSphereAS(m_device, "sphere1");
-        singleSphere1->createSpheres();
+        tinyobj::material_t material02{};
+        material02.ambient[0] = 1.0f;         material02.ambient[1] = 1.0f;         material02.ambient[2] = 1.0f;
+        material02.diffuse[0] = 0.5f;         material02.diffuse[1] = 0.5f;         material02.diffuse[2] = 0.5f;
+        material02.specular[0] = 1.0f;        material02.specular[1] = 1.0f;        material02.specular[2] = 1.0f;
+        material02.transmittance[0] = 0.0f;   material02.transmittance[1] = 0.0f;   material02.transmittance[2] = 0.0f;
+        material02.emission[0] = 0.0f;        material02.emission[1] = 0.0f;        material02.emission[2] = 0.0f;
+        material02.shininess = 100.0f; 
+        material02.ior = 1.0f;
+        material02.dissolve = 1.0f;
+        material02.illum = 2;
+        material02.ambient_texname = "";
+        material02.diffuse_texname = "/checker.png";
+        material02.specular_texname = "";
+        material02.specular_highlight_texname = "";
+        material02.bump_texname = "";
+        material02.displacement_texname = "";
+        material02.alpha_texname = "";
+        material02.reflection_texname = "";
+
+        SphereFlake sf = SphereFlake();
+        sf.generateSphereFlake(5, 0.5);
+        singleSphere1->createSpheres(sf.getSpheres(), material02);
         singleSphere1->create();
         BLAS.push_back(singleSphere1);
 
@@ -900,7 +970,7 @@ private:
         raytracingPipelineCreateInfo.pStages                      = shaderStages.data();
         raytracingPipelineCreateInfo.groupCount                   = static_cast<uint32_t>(shaderGroups.size());
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
-        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 31;
+        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 4;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
 
         if(vkCreateRayTracingPipelinesKHR(m_device->getHandle(), VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &rayTracingPipeline) != VK_SUCCESS)
