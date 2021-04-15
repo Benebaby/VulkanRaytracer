@@ -128,10 +128,29 @@ private:
         sponza->create();
         BLAS.push_back(sponza);
 
-        BottomLevelTriangleAS* rossi = new BottomLevelTriangleAS(m_device, "rossi");
-        rossi->uploadData("/rossi/MCRN_Tachi.obj");
-        rossi->create();
-        BLAS.push_back(rossi);
+        tinyobj::material_t material00{};
+        material00.ambient[0] = 1.0f;         material00.ambient[1] = 1.0f;         material00.ambient[2] = 1.0f;
+        material00.diffuse[0] = 0.68f;         material00.diffuse[1] = 0.85f;         material00.diffuse[2] = 0.9f;
+        material00.specular[0] = 1.0f;        material00.specular[1] = 1.0f;        material00.specular[2] = 1.0f;
+        material00.transmittance[0] = 0.0f;   material00.transmittance[1] = 0.0f;   material00.transmittance[2] = 0.0f;
+        material00.emission[0] = 0.0f;        material00.emission[1] = 0.0f;        material00.emission[2] = 0.0f;
+        material00.shininess = 100.0f; 
+        material00.ior = 1.5f;
+        material00.dissolve = 1.0f;
+        material00.illum = 7;
+        material00.ambient_texname = "";
+        material00.diffuse_texname = "";
+        material00.specular_texname = "";
+        material00.specular_highlight_texname = "";
+        material00.bump_texname = "";
+        material00.displacement_texname = "";
+        material00.alpha_texname = "";
+        material00.reflection_texname = "";
+
+        BottomLevelTriangleAS* bunny = new BottomLevelTriangleAS(m_device, "bunny");
+        bunny->uploadData("/stanford_bunny/bunny.obj", material00);
+        bunny->create();
+        BLAS.push_back(bunny);
 
         BottomLevelSphereAS* singleSphere = new BottomLevelSphereAS(m_device, "sphere0");
 
@@ -144,7 +163,7 @@ private:
         material01.shininess = 100.0f; 
         material01.ior = 1.0f;
         material01.dissolve = 1.0f;
-        material01.illum = 2;
+        material01.illum = 3;
         material01.ambient_texname = "";
         material01.diffuse_texname = "/checker.png";
         material01.specular_texname = "";
@@ -168,6 +187,7 @@ private:
         sphere01.aabbmax[1] = sphere01.center[1] + sphere01.radius; 
         sphere01.aabbmax[2] = sphere01.center[2] + sphere01.radius;
         sphereFractal.push_back(sphere01);
+
         Sphere sphere02;
         sphere02.matID = 0;
         sphere02.center[0] = 0.f; 
@@ -189,16 +209,16 @@ private:
         BottomLevelSphereAS* singleSphere1 = new BottomLevelSphereAS(m_device, "sphere1");
         tinyobj::material_t material02{};
         material02.ambient[0] = 1.0f;         material02.ambient[1] = 1.0f;         material02.ambient[2] = 1.0f;
-        material02.diffuse[0] = 0.5f;         material02.diffuse[1] = 0.5f;         material02.diffuse[2] = 0.5f;
+        material02.diffuse[0] = 1.f;         material02.diffuse[1] = 1.f;         material02.diffuse[2] = 1.f;
         material02.specular[0] = 1.0f;        material02.specular[1] = 1.0f;        material02.specular[2] = 1.0f;
         material02.transmittance[0] = 0.0f;   material02.transmittance[1] = 0.0f;   material02.transmittance[2] = 0.0f;
         material02.emission[0] = 0.0f;        material02.emission[1] = 0.0f;        material02.emission[2] = 0.0f;
         material02.shininess = 100.0f; 
         material02.ior = 1.0f;
         material02.dissolve = 1.0f;
-        material02.illum = 2;
+        material02.illum = 3;
         material02.ambient_texname = "";
-        material02.diffuse_texname = "/checker.png";
+        material02.diffuse_texname = "";
         material02.specular_texname = "";
         material02.specular_highlight_texname = "";
         material02.bump_texname = "";
@@ -206,9 +226,22 @@ private:
         material02.alpha_texname = "";
         material02.reflection_texname = "";
 
-        SphereFlake sf = SphereFlake();
-        sf.generateSphereFlake(5, 0.5);
-        singleSphere1->createSpheres(sf.getSpheres(), material02);
+        Sphere sphere03;
+        sphere03.matID = 0;
+        sphere03.center[0] = 0.f; 
+        sphere03.center[1] = 1.f; 
+        sphere03.center[2] = 0.f;
+        sphere03.radius = 0.5f;
+        sphere03.aabbmin[0] = sphere03.center[0] - sphere03.radius; 
+        sphere03.aabbmin[1] = sphere03.center[1] - sphere03.radius; 
+        sphere03.aabbmin[2] = sphere03.center[2] - sphere03.radius;
+        sphere03.aabbmax[0] = sphere03.center[0] + sphere03.radius; 
+        sphere03.aabbmax[1] = sphere03.center[1] + sphere03.radius; 
+        sphere03.aabbmax[2] = sphere03.center[2] + sphere03.radius;
+
+        // SphereFlake sf = SphereFlake();
+        // sf.generateSphereFlake(4, 0.5);
+        singleSphere1->createSphere(sphere03, material02);
         singleSphere1->create();
         BLAS.push_back(singleSphere1);
 
@@ -441,9 +474,9 @@ private:
             0.0f, 0.0f, 1.0f, 0.0f
         };
         VkTransformMatrixKHR transformMatrix1 = {
-            0.2f, 0.0f, 0.0f, -3.0f,
-            0.0f, 0.2f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.2f, 0.5f
+            1.0f, 0.0f, 0.0f, -3.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.5f
         };
         VkTransformMatrixKHR transformMatrix3 = {
             1.0f, 0.0f, 0.0f, 0.0f,
@@ -948,7 +981,7 @@ private:
         rchitSphereShaderStageInfo.pName = "main";
         shaderStages.push_back(rchitSphereShaderStageInfo);
 
-         VkRayTracingShaderGroupCreateInfoKHR rchitSphereGroupCreateInfo{};
+        VkRayTracingShaderGroupCreateInfoKHR rchitSphereGroupCreateInfo{};
 		rchitSphereGroupCreateInfo.sType              = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 		rchitSphereGroupCreateInfo.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
 		rchitSphereGroupCreateInfo.generalShader      = VK_SHADER_UNUSED_KHR;
@@ -970,7 +1003,7 @@ private:
         raytracingPipelineCreateInfo.pStages                      = shaderStages.data();
         raytracingPipelineCreateInfo.groupCount                   = static_cast<uint32_t>(shaderGroups.size());
         raytracingPipelineCreateInfo.pGroups                      = shaderGroups.data();
-        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 4;
+        raytracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 31;
         raytracingPipelineCreateInfo.layout                       = pipelineLayout;
 
         if(vkCreateRayTracingPipelinesKHR(m_device->getHandle(), VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracingPipelineCreateInfo, nullptr, &rayTracingPipeline) != VK_SUCCESS)

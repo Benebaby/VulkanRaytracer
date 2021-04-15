@@ -19,6 +19,7 @@ public:
     BottomLevelTriangleAS(Device* device, std::string name);
 
     void uploadData(std::string path);
+    void uploadData(std::string path, tinyobj::material_t &material_in);
 
     void create() override;
 

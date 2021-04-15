@@ -158,6 +158,142 @@ void BottomLevelTriangleAS::uploadData(std::string path){
     }
 }
 
+void BottomLevelTriangleAS::uploadData(std::string path, tinyobj::material_t &material_in){
+    std::string modelname = path.substr(1, path.size()-1);
+    modelname = modelname.substr(0, modelname.find_first_of("/\\"));
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.triangulate = true;
+
+    uint32_t materialOffset = static_cast<uint32_t>(m_materials.size());
+
+    tinyobj::ObjReader reader;
+
+    if (!reader.ParseFromFile((MODEL_PATH + path), reader_config)) {
+    if (!reader.Error().empty()) {
+        std::cerr << "TinyObjReader: " << reader.Error();
+    }
+    exit(1);
+    }
+
+    if (!reader.Warning().empty()) {
+        std::cout << "TinyObjReader: " << reader.Warning();
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+
+    Material material{};
+    material.ambient[0] = material_in.ambient[0];               material.ambient[1] = material_in.ambient[1];               material.ambient[2] = material_in.ambient[2];
+    material.diffuse[0] = material_in.diffuse[0];               material.diffuse[1] = material_in.diffuse[1];               material.diffuse[2] = material_in.diffuse[2];
+    material.specular[0] = material_in.specular[0];             material.specular[1] = material_in.specular[1];             material.specular[2] = material_in.specular[2];
+    material.transmittance[0] = material_in.transmittance[0];   material.transmittance[1] = material_in.transmittance[1];   material.transmittance[2] = material_in.transmittance[2];
+    material.emission[0] = material_in.emission[0];             material.emission[1] = material_in.emission[1];             material.emission[2] = material_in.emission[2];
+    material.shininess = material_in.shininess;
+    material.ior = material_in.ior;                     // index of refraction
+    material.dissolve = material_in.dissolve;                // 1 == opaque; 0 == fully transparent
+    material.illum = material_in.illum;                   // Beleuchtungsmodell
+    if(material_in.ambient_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.ambient_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.ambientTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ka
+    }else{
+        material.ambientTexId = -1;
+    }
+    if(material_in.diffuse_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.diffuse_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.diffuseTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Kd
+    }else{
+        material.diffuseTexId = -1;
+    }
+    if(material_in.specular_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.specular_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ks
+    }else{
+        material.specularTexId = -1;
+    }
+    if(material_in.specular_highlight_texname.length() != 0 ){
+        std::string base_filename = material_in.specular_highlight_texname.substr(material_in.specular_highlight_texname.find_last_of("/\\") + 1);
+        m_textures.push_back(Texture(m_device, "/"+modelname+"/"+base_filename, VK_FORMAT_R8G8B8A8_SRGB));
+        material.specularHighlightTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_Ns
+    }else{
+        material.specularHighlightTexId = -1;
+    }
+    if(material_in.bump_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.bump_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.bumpTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_bump, map_Bump, bump
+    }else{
+        material.bumpTexId = -1;
+    }
+    if(material_in.displacement_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.displacement_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.displacementTexId = static_cast<uint32_t>(m_textures.size() - 1);            // disp
+    }else{
+        material.displacementTexId = -1;
+    }
+    if(material_in.alpha_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.alpha_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.alphaTexId = static_cast<uint32_t>(m_textures.size() - 1);            // map_d
+    }else{
+        material.alphaTexId = -1;
+    }
+    if(material_in.reflection_texname.length() != 0 ){
+        m_textures.push_back(Texture(m_device, material_in.reflection_texname, VK_FORMAT_R8G8B8A8_SRGB));
+        material.reflectionTexId = static_cast<uint32_t>(m_textures.size() - 1);            // refl
+    }else{
+        material.reflectionTexId = -1;
+    }
+    m_materials.push_back(material);
+
+    uint32_t current_index = 0; 
+    bool hasNormals = attrib.normals.size() > 0;
+    bool hasUVs = attrib.texcoords.size() > 0;
+    glm::vec3 tempNormal;
+
+    for (size_t s = 0; s < shapes.size(); s++) {
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            int fv = shapes[s].mesh.num_face_vertices[f];
+            int matID = shapes[s].mesh.material_ids[f];
+            if(!hasNormals){
+                tinyobj::index_t index = shapes[s].mesh.indices[index_offset];
+                glm::vec3 v0 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                index = shapes[s].mesh.indices[index_offset + 1];
+                glm::vec3 v1 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                index = shapes[s].mesh.indices[index_offset + 2];
+                glm::vec3 v2 = glm::vec3(attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1],  attrib.vertices[3 * index.vertex_index + 2]);
+                tempNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            }
+            for (size_t v = 0; v < fv; v++) {
+                tinyobj::index_t index = shapes[s].mesh.indices[index_offset + v];
+                Vertex vertex{};
+                vertex.matID = materialOffset;
+                vertex.position[0] = attrib.vertices[3 * index.vertex_index + 0];
+                vertex.position[1] = attrib.vertices[3 * index.vertex_index + 1];
+                vertex.position[2] = attrib.vertices[3 * index.vertex_index + 2];
+                if(hasNormals){
+                    vertex.normal[0] = attrib.normals[3 * index.normal_index + 0];
+                    vertex.normal[1] = attrib.normals[3 * index.normal_index + 1];
+                    vertex.normal[2] = attrib.normals[3 * index.normal_index + 2];
+                }else{
+                    vertex.normal[0] = tempNormal.x;
+                    vertex.normal[1] = tempNormal.y;
+                    vertex.normal[2] = tempNormal.z;
+                }
+                if(hasUVs){
+                    vertex.texture[0] = attrib.texcoords[2 * index.texcoord_index + 0];
+                    vertex.texture[1] = 1.0f - attrib.texcoords[2 * index.texcoord_index + 1];
+                }else{
+                    vertex.texture[0] = 0;
+                    vertex.texture[1] = 0;
+                }
+                m_vertices.push_back(vertex);
+                m_indices.push_back(current_index);
+                current_index++;
+            }
+            index_offset += fv;
+        }
+    }
+}
+
 void BottomLevelTriangleAS::create(){
     uint32_t numTriangles = static_cast<uint32_t>(m_vertices.size()) / 3;
     uint32_t maxVertex = static_cast<uint32_t>(m_vertices.size());

@@ -106,6 +106,55 @@ vec3 processPointLight(Light light, vec3 hitPos, vec3 normal, float shininess, v
   return (ambient + diffuse + specular);
 }
 
+vec3 refractRay(const vec3 I, const vec3 N, const float ior) { 
+    float cosi = clamp(-1, 1, dot(I, N)); 
+    float etai = 1, etat = ior; 
+    vec3 n = N; 
+    if (cosi < 0) { 
+      cosi = -cosi; 
+    } else {
+      float oldetai = etai;
+      etai = etat;
+      etat = oldetai;
+      n= -N; 
+    }
+    float eta = etai / etat; 
+    float k = 1 - eta * eta * (1 - cosi * cosi); 
+    if(k < 0)  
+      return vec3(0);
+    else 
+      return eta * I + (eta * cosi - sqrt(k)) * n;
+} 
+
+void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout float kt){ 
+    float cosi = clamp(-1, 1, dot(I, N)); 
+    float etai = 1; 
+    float etat = ior; 
+    if (cosi > 0) { 
+      float oldetai = etai;
+      etai = etat;
+      etat = oldetai;
+    } 
+    // Compute sini using Snell's law
+    float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi)); 
+    // Total internal reflection
+    if (sint >= 1) { 
+        kr = 1; 
+    } 
+    else { 
+        float cost = sqrt(max(0.f, 1 - sint * sint)); 
+        cosi = abs(cosi); 
+        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
+        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
+        kr = (Rs * Rs + Rp * Rp) / 2; 
+    } 
+    // As a consequence of the conservation of energy, transmittance is given by:
+    // kt = 1 - kr;
+    kt = 1.0 - kr;
+    kt *= Payload.weight * 0.95;
+    kr *= Payload.weight * 0.95;
+} 
+
 void main()
 {
   Vertex v0 = vertices[gl_InstanceCustomIndexEXT].v[indices[gl_InstanceCustomIndexEXT].i[3 * gl_PrimitiveID]];
@@ -138,8 +187,13 @@ void main()
     ambient = diffuse;
   }  
   float reflectance = 0.0;
-  if(material.illum == 7)
+  if(material.illum == 3)
     reflectance = 0.3;
+  
+  float refractance = 0.0;
+  if(material.illum == 7){
+    fresnel(gl_WorldRayDirectionEXT, normal, material.ior, reflectance, refractance);
+  }
 
   Payload.recursion++; 
 
@@ -154,10 +208,17 @@ void main()
     }
   }
 
-  Payload.color += Payload.weight * (1.0 - reflectance) * calculatedColor;
+  Payload.color += Payload.weight * (1.0 - reflectance - refractance) * calculatedColor;
   
-  if(Payload.recursion < 4 && reflectance > 0.0001){
-    Payload.weight *= reflectance;
-    traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.001, reflect(gl_WorldRayDirectionEXT, normal), 10000.0, 0);
+  if(Payload.recursion < 4){
+    float parentWeight = Payload.weight;
+    if(reflectance > 0.0001){
+      Payload.weight = parentWeight * reflectance;
+      traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.001, reflect(gl_WorldRayDirectionEXT, normal), 10000.0, 0);
+    }
+    if(refractance > 0.0001){
+      Payload.weight = parentWeight * refractance;
+      traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.001, refractRay(gl_WorldRayDirectionEXT, normal, material.ior), 10000.0, 0);
+    }
   }
 }

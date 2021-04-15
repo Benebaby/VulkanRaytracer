@@ -6,7 +6,7 @@ SphereFlake::SphereFlake(){
 
 void SphereFlake::generateSphereFlake(int recursionDepth, float radius){
     generateSphereFlake(recursionDepth, glm::mat4(1.f), radius);
-    std::cout<<"Spherflake Size: "<<m_spheres.size()<<std::endl;
+    std::cout<<"Sphereflake Size: "<<m_spheres.size()<<std::endl;
 }
 
 void SphereFlake::generateSphereFlake(int recursionDepth,  glm::mat4 ModelMatrix, float radius){
