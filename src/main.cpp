@@ -81,7 +81,7 @@ private:
     void initVulkan() {
 
         //Instanz mit den Parameter Name, Auflösung, API  Version und Validation flag
-        m_instance = new Instance("Vulkan Raytracing", 1600, 900, VK_API_VERSION_1_2, true);
+        m_instance = new Instance("Vulkan Raytracing", 1000, 1000, VK_API_VERSION_1_2, true);
         //Instanz Erweiterung
         m_instance->addExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
         //Validation Layers
@@ -123,99 +123,99 @@ private:
         getExtensionFunctionPointers();
         createStorageImage();
 
-        BottomLevelTriangleAS* sponza = new BottomLevelTriangleAS(m_device, "sponza");
-        sponza->uploadData("/sponza/sponza.obj");
-        sponza->create();
-        BLAS.push_back(sponza);
+        // BottomLevelTriangleAS* sponza = new BottomLevelTriangleAS(m_device, "sponza");
+        // sponza->uploadData("/sponza/sponza.obj");
+        // sponza->create();
+        // BLAS.push_back(sponza);
 
-        tinyobj::material_t material00{};
-        material00.ambient[0] = 1.0f;         material00.ambient[1] = 1.0f;         material00.ambient[2] = 1.0f;
-        material00.diffuse[0] = 0.68f;         material00.diffuse[1] = 0.85f;         material00.diffuse[2] = 0.9f;
-        material00.specular[0] = 1.0f;        material00.specular[1] = 1.0f;        material00.specular[2] = 1.0f;
-        material00.transmittance[0] = 0.0f;   material00.transmittance[1] = 0.0f;   material00.transmittance[2] = 0.0f;
-        material00.emission[0] = 0.0f;        material00.emission[1] = 0.0f;        material00.emission[2] = 0.0f;
-        material00.shininess = 100.0f; 
-        material00.ior = 1.5f;
-        material00.dissolve = 1.0f;
-        material00.illum = 7;
-        material00.ambient_texname = "";
-        material00.diffuse_texname = "";
-        material00.specular_texname = "";
-        material00.specular_highlight_texname = "";
-        material00.bump_texname = "";
-        material00.displacement_texname = "";
-        material00.alpha_texname = "";
-        material00.reflection_texname = "";
+        // tinyobj::material_t material00{};
+        // material00.ambient[0] = 1.0f;         material00.ambient[1] = 1.0f;         material00.ambient[2] = 1.0f;
+        // material00.diffuse[0] = 0.68f;         material00.diffuse[1] = 0.85f;         material00.diffuse[2] = 0.9f;
+        // material00.specular[0] = 1.0f;        material00.specular[1] = 1.0f;        material00.specular[2] = 1.0f;
+        // material00.transmittance[0] = 0.0f;   material00.transmittance[1] = 0.0f;   material00.transmittance[2] = 0.0f;
+        // material00.emission[0] = 0.0f;        material00.emission[1] = 0.0f;        material00.emission[2] = 0.0f;
+        // material00.shininess = 100.0f; 
+        // material00.ior = 1.5f;
+        // material00.dissolve = 0.7f;
+        // material00.illum = 3;
+        // material00.ambient_texname = "";
+        // material00.diffuse_texname = "/checker.png";
+        // material00.specular_texname = "";
+        // material00.specular_highlight_texname = "";
+        // material00.bump_texname = "";
+        // material00.displacement_texname = "";
+        // material00.alpha_texname = "";
+        // material00.reflection_texname = "";
 
-        BottomLevelTriangleAS* bunny = new BottomLevelTriangleAS(m_device, "bunny");
-        bunny->uploadData("/stanford_bunny/bunny.obj", material00);
-        bunny->create();
-        BLAS.push_back(bunny);
+        // BottomLevelTriangleAS* teapot = new BottomLevelTriangleAS(m_device, "teapot");
+        // teapot->uploadData("/teapot/teapot.obj", material00);
+        // teapot->create();
+        // BLAS.push_back(teapot);
 
-        BottomLevelSphereAS* singleSphere = new BottomLevelSphereAS(m_device, "sphere0");
+        // BottomLevelSphereAS* singleSphere = new BottomLevelSphereAS(m_device, "sphere0");
 
-        tinyobj::material_t material01{};
-        material01.ambient[0] = 1.0f;         material01.ambient[1] = 1.0f;         material01.ambient[2] = 1.0f;
-        material01.diffuse[0] = 1.0f;         material01.diffuse[1] = 0.0f;         material01.diffuse[2] = 1.0f;
-        material01.specular[0] = 1.0f;        material01.specular[1] = 1.0f;        material01.specular[2] = 1.0f;
-        material01.transmittance[0] = 0.0f;   material01.transmittance[1] = 0.0f;   material01.transmittance[2] = 0.0f;
-        material01.emission[0] = 0.0f;        material01.emission[1] = 0.0f;        material01.emission[2] = 0.0f;
-        material01.shininess = 100.0f; 
-        material01.ior = 1.0f;
-        material01.dissolve = 1.0f;
-        material01.illum = 3;
-        material01.ambient_texname = "";
-        material01.diffuse_texname = "/checker.png";
-        material01.specular_texname = "";
-        material01.specular_highlight_texname = "";
-        material01.bump_texname = "";
-        material01.displacement_texname = "";
-        material01.alpha_texname = "";
-        material01.reflection_texname = "";
+        // tinyobj::material_t material01{};
+        // material01.ambient[0] = 1.0f;         material01.ambient[1] = 1.0f;         material01.ambient[2] = 1.0f;
+        // material01.diffuse[0] = 1.0f;         material01.diffuse[1] = 0.0f;         material01.diffuse[2] = 1.0f;
+        // material01.specular[0] = 1.0f;        material01.specular[1] = 1.0f;        material01.specular[2] = 1.0f;
+        // material01.transmittance[0] = 0.0f;   material01.transmittance[1] = 0.0f;   material01.transmittance[2] = 0.0f;
+        // material01.emission[0] = 0.0f;        material01.emission[1] = 0.0f;        material01.emission[2] = 0.0f;
+        // material01.shininess = 100.0f; 
+        // material01.ior = 1.0f;
+        // material01.dissolve = 0.7f;
+        // material01.illum = 3;
+        // material01.ambient_texname = "";
+        // material01.diffuse_texname = "/checker.png";
+        // material01.specular_texname = "";
+        // material01.specular_highlight_texname = "";
+        // material01.bump_texname = "";
+        // material01.displacement_texname = "";
+        // material01.alpha_texname = "";
+        // material01.reflection_texname = "";
 
-        std::vector<Sphere> sphereFractal(0);
-        Sphere sphere01;
-        sphere01.matID = 0;
-        sphere01.center[0] = 0.f; 
-        sphere01.center[1] = 0.f; 
-        sphere01.center[2] = 0.f;
-        sphere01.radius = 0.5f;
-        sphere01.aabbmin[0] = sphere01.center[0] - sphere01.radius; 
-        sphere01.aabbmin[1] = sphere01.center[1] - sphere01.radius; 
-        sphere01.aabbmin[2] = sphere01.center[2] - sphere01.radius;
-        sphere01.aabbmax[0] = sphere01.center[0] + sphere01.radius; 
-        sphere01.aabbmax[1] = sphere01.center[1] + sphere01.radius; 
-        sphere01.aabbmax[2] = sphere01.center[2] + sphere01.radius;
-        sphereFractal.push_back(sphere01);
+        // std::vector<Sphere> spheres(0);
+        // Sphere sphere01;
+        // sphere01.matID = 0;
+        // sphere01.center[0] = 0.f; 
+        // sphere01.center[1] = 0.f; 
+        // sphere01.center[2] = 0.f;
+        // sphere01.radius = 0.5f;
+        // sphere01.aabbmin[0] = sphere01.center[0] - sphere01.radius; 
+        // sphere01.aabbmin[1] = sphere01.center[1] - sphere01.radius; 
+        // sphere01.aabbmin[2] = sphere01.center[2] - sphere01.radius;
+        // sphere01.aabbmax[0] = sphere01.center[0] + sphere01.radius; 
+        // sphere01.aabbmax[1] = sphere01.center[1] + sphere01.radius; 
+        // sphere01.aabbmax[2] = sphere01.center[2] + sphere01.radius;
+        // spheres.push_back(sphere01);
 
-        Sphere sphere02;
-        sphere02.matID = 0;
-        sphere02.center[0] = 0.f; 
-        sphere02.center[1] = 1.f; 
-        sphere02.center[2] = 0.f;
-        sphere02.radius = 0.5f;
-        sphere02.aabbmin[0] = sphere02.center[0] - sphere02.radius; 
-        sphere02.aabbmin[1] = sphere02.center[1] - sphere02.radius; 
-        sphere02.aabbmin[2] = sphere02.center[2] - sphere02.radius;
-        sphere02.aabbmax[0] = sphere02.center[0] + sphere02.radius; 
-        sphere02.aabbmax[1] = sphere02.center[1] + sphere02.radius; 
-        sphere02.aabbmax[2] = sphere02.center[2] + sphere02.radius;
-        sphereFractal.push_back(sphere02);
+        // Sphere sphere02;
+        // sphere02.matID = 0;
+        // sphere02.center[0] = 0.f; 
+        // sphere02.center[1] = 1.f; 
+        // sphere02.center[2] = 0.f;
+        // sphere02.radius = 0.5f;
+        // sphere02.aabbmin[0] = sphere02.center[0] - sphere02.radius; 
+        // sphere02.aabbmin[1] = sphere02.center[1] - sphere02.radius; 
+        // sphere02.aabbmin[2] = sphere02.center[2] - sphere02.radius;
+        // sphere02.aabbmax[0] = sphere02.center[0] + sphere02.radius; 
+        // sphere02.aabbmax[1] = sphere02.center[1] + sphere02.radius; 
+        // sphere02.aabbmax[2] = sphere02.center[2] + sphere02.radius;
+        // spheres.push_back(sphere02);
 
-        singleSphere->createSpheres(sphereFractal, material01);
-        singleSphere->create();
-        BLAS.push_back(singleSphere);
+        // singleSphere->createSpheres(spheres, material01);
+        // singleSphere->create();
+        // BLAS.push_back(singleSphere);
 
         BottomLevelSphereAS* singleSphere1 = new BottomLevelSphereAS(m_device, "sphere1");
         tinyobj::material_t material02{};
         material02.ambient[0] = 1.0f;         material02.ambient[1] = 1.0f;         material02.ambient[2] = 1.0f;
-        material02.diffuse[0] = 1.f;         material02.diffuse[1] = 1.f;         material02.diffuse[2] = 1.f;
+        material02.diffuse[0] = 0.f;         material02.diffuse[1] = 0.f;         material02.diffuse[2] = 0.f;
         material02.specular[0] = 1.0f;        material02.specular[1] = 1.0f;        material02.specular[2] = 1.0f;
         material02.transmittance[0] = 0.0f;   material02.transmittance[1] = 0.0f;   material02.transmittance[2] = 0.0f;
         material02.emission[0] = 0.0f;        material02.emission[1] = 0.0f;        material02.emission[2] = 0.0f;
         material02.shininess = 100.0f; 
         material02.ior = 1.0f;
-        material02.dissolve = 1.0f;
+        material02.dissolve = 0.7f;
         material02.illum = 3;
         material02.ambient_texname = "";
         material02.diffuse_texname = "";
@@ -226,22 +226,9 @@ private:
         material02.alpha_texname = "";
         material02.reflection_texname = "";
 
-        Sphere sphere03;
-        sphere03.matID = 0;
-        sphere03.center[0] = 0.f; 
-        sphere03.center[1] = 1.f; 
-        sphere03.center[2] = 0.f;
-        sphere03.radius = 0.5f;
-        sphere03.aabbmin[0] = sphere03.center[0] - sphere03.radius; 
-        sphere03.aabbmin[1] = sphere03.center[1] - sphere03.radius; 
-        sphere03.aabbmin[2] = sphere03.center[2] - sphere03.radius;
-        sphere03.aabbmax[0] = sphere03.center[0] + sphere03.radius; 
-        sphere03.aabbmax[1] = sphere03.center[1] + sphere03.radius; 
-        sphere03.aabbmax[2] = sphere03.center[2] + sphere03.radius;
-
-        // SphereFlake sf = SphereFlake();
-        // sf.generateSphereFlake(4, 0.5);
-        singleSphere1->createSphere(sphere03, material02);
+        SphereFlake sf = SphereFlake();
+        sf.generateSphereFlake(4, 0.5);
+        singleSphere1->createSpheres(sf.getSpheres(), material02);
         singleSphere1->create();
         BLAS.push_back(singleSphere1);
 
@@ -255,10 +242,19 @@ private:
     }
 
     void mainLoop() {
+        double time;
+        std::vector<double> frameTimes(0);
         while (!glfwWindowShouldClose(m_instance->getWindow())) {
             glfwPollEvents();
+            time = glfwGetTime();
             drawFrame();
+            frameTimes.emplace_back(glfwGetTime() - time);
         }
+        for (size_t i = std::max((int)frameTimes.size() - 101, (int)0); i < frameTimes.size(); i++)
+        {
+            std::cout<<frameTimes[i] * 1000.f<<std::endl;
+        }
+        
         vkDeviceWaitIdle(m_device->getHandle());
     }
 
@@ -473,56 +469,56 @@ private:
             0.0f, 1.0f, 0.0f, -1.55f,
             0.0f, 0.0f, 1.0f, 0.0f
         };
-        VkTransformMatrixKHR transformMatrix1 = {
-            1.0f, 0.0f, 0.0f, -3.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.5f
-        };
-        VkTransformMatrixKHR transformMatrix3 = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, -0.6f
-        };
-        VkTransformMatrixKHR transformMatrix4 = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.6f
-        };
+        // VkTransformMatrixKHR transformMatrix1 = {
+        //     1.0f, 0.0f, 0.0f, -3.0f,
+        //     0.0f, 1.0f, 0.0f, 0.0f,
+        //     0.0f, 0.0f, 1.0f, 0.5f
+        // };
+        // VkTransformMatrixKHR transformMatrix3 = {
+        //     1.0f, 0.0f, 0.0f, 0.0f,
+        //     0.0f, 1.0f, 0.0f, 0.0f,
+        //     0.0f, 0.0f, 1.0f, -0.6f
+        // };
+        // VkTransformMatrixKHR transformMatrix4 = {
+        //     1.0f, 0.0f, 0.0f, 0.0f,
+        //     0.0f, 1.0f, 0.0f, 0.0f,
+        //     0.0f, 0.0f, 1.0f, 0.6f
+        // };
 
         VkAccelerationStructureInstanceKHR accelerationStructureInstance0{};
         accelerationStructureInstance0.transform                              = transformMatrix0;
         accelerationStructureInstance0.instanceCustomIndex                    = BLAS[0]->getId();
         accelerationStructureInstance0.mask                                   = 0xFF;
-        accelerationStructureInstance0.instanceShaderBindingTableRecordOffset = 0;
+        accelerationStructureInstance0.instanceShaderBindingTableRecordOffset = 1;
         accelerationStructureInstance0.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         accelerationStructureInstance0.accelerationStructureReference         = BLAS[0]->getDeviceAdress();
 
-        VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
-        accelerationStructureInstance1.transform                              = transformMatrix1;
-        accelerationStructureInstance1.instanceCustomIndex                    = BLAS[1]->getId();
-        accelerationStructureInstance1.mask                                   = 0xFF;
-        accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
-        accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance1.accelerationStructureReference         = BLAS[1]->getDeviceAdress();
+        // VkAccelerationStructureInstanceKHR accelerationStructureInstance1{};
+        // accelerationStructureInstance1.transform                              = transformMatrix1;
+        // accelerationStructureInstance1.instanceCustomIndex                    = BLAS[1]->getId();
+        // accelerationStructureInstance1.mask                                   = 0xFF;
+        // accelerationStructureInstance1.instanceShaderBindingTableRecordOffset = 0;
+        // accelerationStructureInstance1.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        // accelerationStructureInstance1.accelerationStructureReference         = BLAS[1]->getDeviceAdress();
 
-        VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
-        accelerationStructureInstance3.transform                              = transformMatrix3;
-        accelerationStructureInstance3.instanceCustomIndex                    = BLAS[2]->getId();
-        accelerationStructureInstance3.mask                                   = 0xFF;
-        accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
-        accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance3.accelerationStructureReference         = BLAS[2]->getDeviceAdress();
+        // VkAccelerationStructureInstanceKHR accelerationStructureInstance3{};
+        // accelerationStructureInstance3.transform                              = transformMatrix3;
+        // accelerationStructureInstance3.instanceCustomIndex                    = BLAS[2]->getId();
+        // accelerationStructureInstance3.mask                                   = 0xFF;
+        // accelerationStructureInstance3.instanceShaderBindingTableRecordOffset = 1;
+        // accelerationStructureInstance3.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        // accelerationStructureInstance3.accelerationStructureReference         = BLAS[2]->getDeviceAdress();
 
-        VkAccelerationStructureInstanceKHR accelerationStructureInstance4{};
-        accelerationStructureInstance4.transform                              = transformMatrix4;
-        accelerationStructureInstance4.instanceCustomIndex                    = BLAS[3]->getId();
-        accelerationStructureInstance4.mask                                   = 0xFF;
-        accelerationStructureInstance4.instanceShaderBindingTableRecordOffset = 1;
-        accelerationStructureInstance4.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance4.accelerationStructureReference         = BLAS[3]->getDeviceAdress();
+        // VkAccelerationStructureInstanceKHR accelerationStructureInstance4{};
+        // accelerationStructureInstance4.transform                              = transformMatrix4;
+        // accelerationStructureInstance4.instanceCustomIndex                    = BLAS[3]->getId();
+        // accelerationStructureInstance4.mask                                   = 0xFF;
+        // accelerationStructureInstance4.instanceShaderBindingTableRecordOffset = 1;
+        // accelerationStructureInstance4.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        // accelerationStructureInstance4.accelerationStructureReference         = BLAS[3]->getDeviceAdress();
 
 
-        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0, accelerationStructureInstance1, accelerationStructureInstance3, accelerationStructureInstance4};
+        std::vector<VkAccelerationStructureInstanceKHR> geometryInstances {accelerationStructureInstance0/*, accelerationStructureInstance1, accelerationStructureInstance3, accelerationStructureInstance4*/};
         VkDeviceSize geometryInstancesSize = geometryInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
         Buffer instancesBuffer = Buffer(m_device, geometryInstancesSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);        
@@ -639,13 +635,24 @@ private:
     }
 
     void createDescriptorSets(){
+        uint32_t storageBufferCount = 2;
+        if(BottomLevelTriangleAS::getCount() > 0){
+            storageBufferCount += 2;
+        }
+        if(BottomLevelSphereAS::getCount() > 0){
+            storageBufferCount += 1;
+        }
         std::vector<VkDescriptorPoolSize> poolSizes = {
             {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BottomLevelAS::getTextureCount()}
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, storageBufferCount}
         };
+
+        if(BottomLevelAS::getTextureCount() > 0){
+            poolSizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BottomLevelAS::getTextureCount()});
+        }
+
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
@@ -698,41 +705,45 @@ private:
         uniformBufferWrite.pBufferInfo = &uniformBufferDescriptor;
 
         VkWriteDescriptorSet vertexBufferWrite{};
-        vertexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        vertexBufferWrite.dstSet = descriptorSet;
-        vertexBufferWrite.dstBinding = 3;
-        vertexBufferWrite.dstArrayElement = 0;
-        vertexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        vertexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
-        vertexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getVertexBufferDescriptors();
-
         VkWriteDescriptorSet indexBufferWrite{};
-        indexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        indexBufferWrite.dstSet = descriptorSet;
-        indexBufferWrite.dstBinding = 4;
-        indexBufferWrite.dstArrayElement = 0;
-        indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        indexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
-        indexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getIndexBufferDescriptors();
+        if(BottomLevelTriangleAS::getCount() > 0){
+            vertexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            vertexBufferWrite.dstSet = descriptorSet;
+            vertexBufferWrite.dstBinding = 3;
+            vertexBufferWrite.dstArrayElement = 0;
+            vertexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            vertexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
+            vertexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getVertexBufferDescriptors();
+            indexBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            indexBufferWrite.dstSet = descriptorSet;
+            indexBufferWrite.dstBinding = 4;
+            indexBufferWrite.dstArrayElement = 0;
+            indexBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            indexBufferWrite.descriptorCount = BottomLevelTriangleAS::getCount();
+            indexBufferWrite.pBufferInfo = BottomLevelTriangleAS::getIndexBufferDescriptors();
+        }
         
         VkWriteDescriptorSet textureImageWrite{};
-        textureImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        textureImageWrite.dstSet = descriptorSet;
-        textureImageWrite.dstBinding = 5;
-        textureImageWrite.dstArrayElement = 0;
-        textureImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        textureImageWrite.descriptorCount = BottomLevelAS::getTextureCount();
-        textureImageWrite.pImageInfo = BottomLevelAS::getTextureDescriptors();
+        if(BottomLevelAS::getTextureCount() > 0){
+            textureImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            textureImageWrite.dstSet = descriptorSet;
+            textureImageWrite.dstBinding = 5;
+            textureImageWrite.dstArrayElement = 0;
+            textureImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            textureImageWrite.descriptorCount = BottomLevelAS::getTextureCount();
+            textureImageWrite.pImageInfo = BottomLevelAS::getTextureDescriptors();
+        }
 
         VkWriteDescriptorSet sphereBufferWrite{};
-        sphereBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sphereBufferWrite.dstSet = descriptorSet;
-        sphereBufferWrite.dstBinding = 6;
-        sphereBufferWrite.dstArrayElement = 0;
-        sphereBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        sphereBufferWrite.descriptorCount = BottomLevelSphereAS::getCount();
-        sphereBufferWrite.pBufferInfo = BottomLevelSphereAS::getSphereBufferDescriptors();
-
+        if(BottomLevelSphereAS::getCount() > 0){
+            sphereBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            sphereBufferWrite.dstSet = descriptorSet;
+            sphereBufferWrite.dstBinding = 6;
+            sphereBufferWrite.dstArrayElement = 0;
+            sphereBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            sphereBufferWrite.descriptorCount = BottomLevelSphereAS::getCount();
+            sphereBufferWrite.pBufferInfo = BottomLevelSphereAS::getSphereBufferDescriptors();
+        }
 
         VkWriteDescriptorSet materialBufferWrite{};
         materialBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -757,13 +768,19 @@ private:
             accelerationStructureWrite,
 	        resultImageWrite,
             uniformBufferWrite,
-            vertexBufferWrite,
-            indexBufferWrite,
-            textureImageWrite,
-            sphereBufferWrite,
             materialBufferWrite,
             lightBufferWrite
         };
+        if(BottomLevelTriangleAS::getCount() > 0){
+            writeDescriptorSets.push_back(vertexBufferWrite);
+            writeDescriptorSets.push_back(indexBufferWrite);
+        }
+        if(BottomLevelSphereAS::getCount() > 0){
+            writeDescriptorSets.push_back(sphereBufferWrite);
+        }
+        if(BottomLevelAS::getTextureCount() > 0){
+            writeDescriptorSets.push_back(textureImageWrite);
+        }
 
         vkUpdateDescriptorSets(m_device->getHandle(), static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
     }

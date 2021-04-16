@@ -45,6 +45,6 @@ void main()
 	// imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue / 4, 0.0));
 
 	//Single sample per pixel
-	vec3 tempHitValue = traceRay(0.001f, 10000.0f, vec2(0.25));
+	vec3 tempHitValue = traceRay(0.01f, 10000.0f, vec2(0.5));
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(tempHitValue, 0.0));
 }

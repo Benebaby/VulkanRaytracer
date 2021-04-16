@@ -124,7 +124,7 @@ vec3 refractRay(const vec3 I, const vec3 N, const float ior) {
       return eta * I + (eta * cosi - sqrt(k)) * n;
 } 
 
-void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout float kt){ 
+void fresnel(const vec3 I, const vec3 N, const float ior, const float dissolve, inout float kr, inout float kt){ 
     float cosi = clamp(-1, 1, dot(I, N)); 
     float etai = 1; 
     float etat = ior; 
@@ -186,11 +186,11 @@ void main()
 
   float reflectance = 0.0;
   if(material.illum == 3)
-    reflectance = 0.3;
+    reflectance = 1.0 - material.dissolve;
   
   float refractance = 0.0;
   if(material.illum == 7){
-    fresnel(gl_WorldRayDirectionEXT, normal, material.ior, reflectance, refractance);
+    fresnel(gl_WorldRayDirectionEXT, normal, material.ior, material.dissolve, reflectance, refractance);
   }
 
   Payload.recursion++; 
@@ -216,7 +216,7 @@ void main()
     }
     if(refractance > 0.0001){
       Payload.weight = parentWeight * refractance;
-      traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.001, refractRay(gl_WorldRayDirectionEXT, normal, material.ior), 10000.0, 0);
+      traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, position, 0.01, refractRay(gl_WorldRayDirectionEXT, normal, material.ior), 10000.0, 0);
     }
   }
 }
