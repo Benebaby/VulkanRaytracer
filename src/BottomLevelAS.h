@@ -27,7 +27,7 @@ public:
     std::string m_name;
     uint32_t m_id;
     Buffer m_accelerationStructureBuffer;
-    VkDeviceAddress m_deviceAddress = VK_NULL_HANDLE;
+    VkDeviceAddress m_deviceAddress;
     VkAccelerationStructureKHR  m_handle = VK_NULL_HANDLE;
     uint32_t getId() const;
     VkDeviceAddress getDeviceAdress() const;
